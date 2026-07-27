@@ -1,0 +1,46 @@
+# ==================== Java / Maven ====================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# ==================== Node.js / pnpm ====================
+node_modules/
+dist/
+*.tsbuildinfo
+pnpm-lock.yaml
+
+# ==================== IDE ====================
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+*~
+
+# ==================== OS ====================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==================== Env & Secrets ====================
+.env
+.env.local
+*.local
+
+# ==================== Docker ====================
+docker-compose.override.yml
+
+# ==================== Logs ====================
+logs/
+*.log
+
+# ==================== Auto-generated ====================
+# Vue auto-imports
+src/auto-imports.d.ts
+src/components.d.ts

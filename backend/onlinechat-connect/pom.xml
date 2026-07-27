@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.sylvie233</groupId>
+        <artifactId>onlinechat</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>onlinechat-connect</artifactId>
+    <packaging>jar</packaging>
+    <name>OnlineChat-Connect</name>
+    <description>长连接网关 — Netty + WebSocket，消息路由与推送、在线状态管理</description>
+
+    <dependencies>
+        <!-- 依赖 service（路由时需要查用户/群信息） -->
+        <dependency>
+            <groupId>com.sylvie233</groupId>
+            <artifactId>onlinechat-service</artifactId>
+        </dependency>
+
+        <!-- Netty -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+        </dependency>
+
+        <!-- Jackson（消息编解码） -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Redis（跨节点 Channel 映射、在线状态同步） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>

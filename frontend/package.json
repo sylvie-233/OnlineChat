@@ -1,0 +1,14 @@
+{
+  "name": "onlinechat-frontend",
+  "private": true,
+  "scripts": {
+    "dev:client": "pnpm --filter @onlinechat/client dev",
+    "dev:admin": "pnpm --filter @onlinechat/admin dev",
+    "build:client": "pnpm --filter @onlinechat/client build",
+    "build:admin": "pnpm --filter @onlinechat/admin build",
+    "lint": "pnpm -r lint"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

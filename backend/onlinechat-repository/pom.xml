@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.sylvie233</groupId>
+        <artifactId>onlinechat</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>onlinechat-repository</artifactId>
+    <packaging>jar</packaging>
+    <name>OnlineChat-Repository</name>
+    <description>数据访问层 — Entity、Mapper、DTO、VO（MyBatis-Plus）</description>
+
+    <dependencies>
+        <!-- 依赖 common -->
+        <dependency>
+            <groupId>com.sylvie233</groupId>
+            <artifactId>onlinechat-common</artifactId>
+        </dependency>
+
+        <!-- MyBatis-Plus -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+        </dependency>
+
+        <!-- MySQL -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>

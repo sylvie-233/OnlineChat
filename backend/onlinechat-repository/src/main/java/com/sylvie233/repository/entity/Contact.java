@@ -1,0 +1,29 @@
+package com.sylvie233.repository.entity;
+
+import com.baomidou.mybatisplus.annotation.*;
+import lombok.Data;
+import java.time.LocalDateTime;
+
+/**
+ * 好友关系表实体
+ */
+@Data
+@TableName("contact")
+public class Contact {
+
+    @TableId(type = IdType.AUTO)
+    private Long id;
+
+    private Long userId;
+    private Long contactUserId;
+    private Long groupId;
+    private String remark;
+    private Integer isStarred;
+    private String source;
+
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime createTime;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updateTime;
+}

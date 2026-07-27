@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- ==================== 属性 ==================== -->
+    <property name="LOG_PATTERN_CONSOLE"
+              value="%d{HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg%n"/>
+
+    <property name="LOG_PATTERN_FILE"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"/>
+
+    <property name="LOG_PATH" value="${LOG_PATH:-./logs}"/>
+
+    <!-- ==================== Appender ==================== -->
+
+    <!-- 控制台输出 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN_CONSOLE}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 全量日志文件 -->
+    <appender name="FILE_ALL" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/onlinechat.log</file>
+        <encoder>
+            <pattern>${LOG_PATTERN_FILE}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/onlinechat.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>3GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- 错误日志单独文件 -->
+    <appender name="FILE_ERROR" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/error.log</file>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+        <encoder>
+            <pattern>${LOG_PATTERN_FILE}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/error.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>30MB</maxFileSize>
+            <maxHistory>60</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <!-- 消息日志（业务审计） -->
+    <appender name="FILE_MESSAGE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/message.log</file>
+        <encoder>
+            <pattern>${LOG_PATTERN_FILE}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/message.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <!-- 异步输出（提升性能） -->
+    <appender name="ASYNC_FILE_ALL" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="FILE_ALL"/>
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+    </appender>
+
+    <appender name="ASYNC_FILE_ERROR" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="FILE_ERROR"/>
+        <queueSize>256</queueSize>
+        <neverBlock>true</neverBlock>
+    </appender>
+
+    <appender name="ASYNC_FILE_MESSAGE" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="FILE_MESSAGE"/>
+        <queueSize>512</queueSize>
+        <neverBlock>true</neverBlock>
+    </appender>
+
+    <!-- ==================== Logger ==================== -->
+
+    <!-- 业务日志 -->
+    <logger name="com.sylvie233" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE_ALL"/>
+        <appender-ref ref="ASYNC_FILE_ERROR"/>
+    </logger>
+
+    <!-- 消息日志 -->
+    <logger name="com.sylvie233.service.message" level="DEBUG" additivity="true">
+        <appender-ref ref="ASYNC_FILE_MESSAGE"/>
+    </logger>
+    <logger name="com.sylvie233.connect.router" level="DEBUG" additivity="true">
+        <appender-ref ref="ASYNC_FILE_MESSAGE"/>
+    </logger>
+
+    <!-- Netty -->
+    <logger name="io.netty" level="INFO"/>
+
+    <!-- MyBatis SQL（开发环境调试用，生产注释掉） -->
+    <logger name="com.sylvie233.repository.mapper" level="DEBUG"/>
+
+    <!-- Spring / Hikari -->
+    <logger name="org.springframework" level="INFO"/>
+    <logger name="com.zaxxer.hikari" level="INFO"/>
+
+    <!-- ==================== Root ==================== -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE_ALL"/>
+        <appender-ref ref="ASYNC_FILE_ERROR"/>
+    </root>
+
+    <!-- ==================== Profile: 开发环境 ==================== -->
+    <springProfile name="dev,default">
+        <logger name="com.sylvie233" level="DEBUG"/>
+        <logger name="com.sylvie233.repository.mapper" level="DEBUG"/>
+        <root level="INFO"/>
+    </springProfile>
+
+    <!-- ==================== Profile: 生产环境 ==================== -->
+    <springProfile name="prod">
+        <property name="LOG_PATTERN_CONSOLE"
+                  value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"/>
+        <logger name="com.sylvie233" level="INFO"/>
+        <logger name="com.sylvie233.repository.mapper" level="WARN"/>
+        <root level="WARN"/>
+    </springProfile>
+
+</configuration>
