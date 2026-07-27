@@ -29,7 +29,7 @@ services:
 
   # Redis 缓存
   redis:
-    image: redis:7.4-alpine
+    image: redis:7.4
     container_name: redis
     restart: unless-stopped
     ports:

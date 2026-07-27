@@ -1,5 +1,5 @@
 # ==================== 构建阶段 ====================
-FROM maven:3.9-eclipse-temurin-21-alpine AS builder
+FROM maven:3.9-eclipse-temurin-17-alpine AS builder
 WORKDIR /build
 
 # 先复制 pom，利用 Docker 缓存下载依赖
@@ -18,7 +18,7 @@ COPY . .
 RUN mvn clean package -pl onlinechat-server -am -DskipTests -B
 
 # ==================== 运行阶段 ====================
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
 RUN addgroup -S onlinechat && adduser -S onlinechat -G onlinechat
