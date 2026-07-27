@@ -43,9 +43,23 @@ public class MessageRouter {
 
     public void handleAuth(Channel channel, ChannelSession session, ImPacket packet) {
         JSONObject body = (JSONObject) packet.getBody();
+        String token = body.getString("token");
         String deviceType = body.getString("deviceType");
         String deviceId = body.getString("deviceId");
+        // 优先用 token 反查真实 userId，防止客户端传错 ID
         Long userId = body.getLong("userId");
+        if (token != null && !token.isEmpty()) {
+            try {
+                Object loginId = cn.dev33.satoken.stp.StpUtil.getLoginIdByToken(token);
+                if (loginId != null) {
+                    long tokenUserId = Long.parseLong(loginId.toString());
+                    if (userId == null || !userId.equals(tokenUserId)) {
+                        log.warn("客户端传入 userId={}, token 真实 userId={}, 以 token 为准", userId, tokenUserId);
+                        userId = tokenUserId;
+                    }
+                }
+            } catch (Exception e) { /* token 解析失败，使用 body userId */ }
+        }
 
         if (userId == null) {
             channel.writeAndFlush(new TextWebSocketFrame(
@@ -107,6 +121,14 @@ public class MessageRouter {
         msg.setClientMsgId(body.getString("clientMsgId"));
         msg.setExtra(body.getString("extra"));
         msg.setReplyToMsgId(body.getLong("replyToMsgId"));
+        Long convId = body.getLong("conversationId");
+        msg.setConversationId(convId != null ? convId : 0L);
+
+        // 携带发送者昵称（用于前端显示，不依赖 userId 比对）
+        com.sylvie233.repository.entity.User sender = userService.getById(session.getUserId());
+        if (sender != null && msg.getExtra() == null) {
+            msg.setExtra("{\"fromNickname\":\"" + (sender.getNickname() != null ? sender.getNickname() : "") + "\"}");
+        }
         return msg;
     }
 
@@ -192,11 +214,14 @@ public class MessageRouter {
 
     public void handleReadNotify(ChannelSession session, ImPacket packet) {
         JSONObject body = (JSONObject) packet.getBody();
-        Long messageId = body.getLong("messageId");
+        Long messageId = parseLong(body.get("messageId"));
         if (messageId != null) {
-            messageReadService.markAsRead(messageId, session.getUserId());
-            // 多端已读同步：通知该用户其他设备
-            syncReadToOtherDevices(session, messageId);
+            try {
+                messageReadService.markAsRead(messageId, session.getUserId());
+                syncReadToOtherDevices(session, messageId);
+            } catch (Exception e) {
+                log.warn("已读标记失败（消息可能不存在）: messageId={}", messageId);
+            }
         }
     }
 
@@ -269,6 +294,12 @@ public class MessageRouter {
         for (Channel ch : channels) {
             if (ch.isActive()) ch.writeAndFlush(new TextWebSocketFrame(json));
         }
+    }
+
+    private Long parseLong(Object v) {
+        if (v instanceof Number) return ((Number) v).longValue();
+        if (v instanceof String) { try { return Long.parseLong((String) v); } catch (NumberFormatException e) {} }
+        return null;
     }
 
     private void ack(Channel channel, int cmd, long seq, Object data) {

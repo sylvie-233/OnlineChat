@@ -7,7 +7,7 @@ const http = axios.create({
 })
 
 http.interceptors.request.use((config) => {
-  const token = localStorage.getItem('adminToken')
+  const token = localStorage.getItem('admin_token')
   if (token) {
     config.headers.Authorization = token
   }

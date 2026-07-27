@@ -11,14 +11,12 @@ target/
 node_modules/
 dist/
 *.tsbuildinfo
-pnpm-lock.yaml
 
 # ==================== IDE ====================
 .idea/
 *.iml
 *.iws
 *.ipr
-.vscode/
 *.swp
 *.swo
 *~
@@ -39,8 +37,3 @@ docker-compose.override.yml
 # ==================== Logs ====================
 logs/
 *.log
-
-# ==================== Auto-generated ====================
-# Vue auto-imports
-src/auto-imports.d.ts
-src/components.d.ts

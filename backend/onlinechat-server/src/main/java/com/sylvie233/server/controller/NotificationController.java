@@ -24,8 +24,8 @@ public class NotificationController {
 
     @Operation(summary = "获取通知列表(分页)")
     @GetMapping("/list")
-    public Result<?> getNotifications(@RequestParam(defaultValue = "1") int page,
-                                       @RequestParam(defaultValue = "20") int size) {
+    public Result<?> getNotifications(@RequestParam(name = "page", defaultValue = "1") int page,
+                                       @RequestParam(name = "size", defaultValue = "20") int size) {
         Long userId = StpUtil.getLoginIdAsLong();
         Page<Notification> pageResult = notificationService.getNotifications(userId, page, size);
         return PageResult.of(pageResult.getRecords(), pageResult.getTotal(), page, size);

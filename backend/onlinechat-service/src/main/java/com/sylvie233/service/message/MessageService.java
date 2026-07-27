@@ -32,6 +32,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
     private final MessageMentionService mentionService;
     private final RedisCacheService redisCacheService;
     private final MessageQueueProducer queueProducer;
+    private final com.sylvie233.repository.mapper.ConversationMapper conversationMapper;
 
     private static final Pattern MENTION_PATTERN = Pattern.compile("@\\{(\\d+)\\}");
 
@@ -57,7 +58,12 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
             }
         }
 
-        // 2. seq 自增
+        // 2. 确保 conversationId 正确（查已有会话或新建）
+        if (msg.getConversationId() == null || msg.getConversationId() == 0L) {
+            msg.setConversationId(resolveConversationId(msg));
+        }
+
+        // 3. seq 自增
         String seqKey = buildSeqKey(msg);
         msg.setSeq(redisCacheService.nextSeq(seqKey));
         msg.setStatus(MessageStatus.SENT.getCode());
@@ -145,26 +151,26 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
     }
 
     /**
-     * 拉取会话最新 N 条消息
+     * 拉取会话最新 N 条消息（私聊按 userId 双查双方的消息）
      */
-    public List<Message> getLatestMessages(Long conversationId, ConversationType type, int limit) {
-        return messageMapper.selectLatestByConversation(conversationId, type.getCode(), limit);
+    public List<Message> getLatestMessages(Long conversationId, ConversationType type, int limit, Long currentUserId) {
+        return messageMapper.selectLatestByConversation(conversationId, type.getCode(), currentUserId, limit);
     }
 
     /**
-     * 向前翻页拉取历史消息（seq < cursorSeq）
+     * 向前翻页（私聊按 userId 双查双方的消息）
      */
     public List<Message> getHistoryMessages(Long conversationId, ConversationType type,
-                                             Long cursorSeq, int limit) {
-        return messageMapper.selectHistoryByConversation(conversationId, type.getCode(), cursorSeq, limit);
+                                             Long cursorSeq, int limit, Long currentUserId) {
+        return messageMapper.selectHistoryByConversation(conversationId, type.getCode(), currentUserId, cursorSeq, limit);
     }
 
     /**
-     * 增量同步 — 获取 sinceSeq 之后的新消息（seq > sinceSeq）
+     * 增量同步
      */
     public List<Message> getSyncMessages(Long conversationId, ConversationType type,
-                                          Long sinceSeq, int limit) {
-        return messageMapper.selectSyncByConversation(conversationId, type.getCode(), sinceSeq, limit);
+                                          Long sinceSeq, int limit, Long currentUserId) {
+        return messageMapper.selectSyncByConversation(conversationId, type.getCode(), currentUserId, sinceSeq, limit);
     }
 
     /**
@@ -249,6 +255,43 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
     }
 
     // ==================== 内部 ====================
+
+    /**
+     * 查找或创建会话（发送者侧），返回 conversationId。
+     * 同时为接收者也创建会话（同步，不等异步事件）
+     */
+    private Long resolveConversationId(Message msg) {
+        int convType = msg.getConversationType() != null ? msg.getConversationType() : 0;
+        Long targetId = msg.getToId();
+        Long fromUserId = msg.getFromUserId();
+
+        // 1. 发送者会话
+        Long convId = getOrCreateConversation(fromUserId, convType, targetId);
+
+        // 2. 单聊时同步创建接收者会话
+        if (convType == 0) {
+            getOrCreateConversation(targetId, convType, fromUserId);
+        }
+        return convId;
+    }
+
+    private Long getOrCreateConversation(Long userId, int convType, Long targetId) {
+        com.sylvie233.repository.entity.Conversation exist = conversationMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.sylvie233.repository.entity.Conversation>()
+                        .eq(com.sylvie233.repository.entity.Conversation::getType, convType)
+                        .eq(com.sylvie233.repository.entity.Conversation::getUserId, userId)
+                        .eq(com.sylvie233.repository.entity.Conversation::getTargetId, targetId));
+        if (exist != null) return exist.getId();
+
+        com.sylvie233.repository.entity.Conversation conv = new com.sylvie233.repository.entity.Conversation();
+        conv.setUserId(userId);
+        conv.setType(convType);
+        conv.setTargetId(targetId);
+        conv.setUnreadCount(0);
+        conversationMapper.insert(conv);
+        log.info("自动创建会话: convId={}, userId={}, targetId={}", conv.getId(), userId, targetId);
+        return conv.getId();
+    }
 
     private String buildSeqKey(Message msg) {
         int type = msg.getConversationType() != null ? msg.getConversationType() : 0;

@@ -1,7 +1,6 @@
 {
   "extends": "@onlinechat/tsconfig/tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }

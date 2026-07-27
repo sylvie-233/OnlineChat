@@ -86,7 +86,7 @@ services:
       - "8080:8080"    # HTTP API
       - "9090:9090"    # Netty WebSocket
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/online_chat?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/online_chat?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-sylvie233}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-123456}
       SPRING_DATA_REDIS_HOST: redis

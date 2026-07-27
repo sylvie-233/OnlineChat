@@ -59,7 +59,8 @@ public class MessageController {
                                             @RequestParam(defaultValue = "0") int type,
                                             @RequestParam(defaultValue = "20") int limit) {
         ConversationType convType = ConversationType.values()[type];
-        return Result.ok(messageService.getLatestMessages(conversationId, convType, limit));
+        Long userId = StpUtil.getLoginIdAsLong();
+        return Result.ok(messageService.getLatestMessages(conversationId, convType, limit, userId));
     }
 
     @Operation(summary = "拉取历史消息")
@@ -69,7 +70,8 @@ public class MessageController {
                                              @RequestParam Long cursorSeq,
                                              @RequestParam(defaultValue = "20") int limit) {
         ConversationType convType = ConversationType.values()[type];
-        return Result.ok(messageService.getHistoryMessages(conversationId, convType, cursorSeq, limit));
+        Long userId = StpUtil.getLoginIdAsLong();
+        return Result.ok(messageService.getHistoryMessages(conversationId, convType, cursorSeq, limit, userId));
     }
 
     @Operation(summary = "增量同步(seq游标): 拉取 sinceSeq 之后的新消息")
@@ -80,7 +82,8 @@ public class MessageController {
                                        @RequestParam(defaultValue = "50") int limit) {
         try {
             ConversationType convType = ConversationType.values()[type];
-            return Result.ok(messageService.getSyncMessages(conversationId, convType, sinceSeq, limit));
+            Long userId = StpUtil.getLoginIdAsLong();
+            return Result.ok(messageService.getSyncMessages(conversationId, convType, sinceSeq, limit, userId));
         } catch (IndexOutOfBoundsException e) {
             return Result.fail("无效的会话类型");
         }
