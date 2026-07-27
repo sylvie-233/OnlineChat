@@ -5,32 +5,20 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * Channel 会话封装
- * <p>一个设备连接对应一个 ChannelSession</p>
+ * Channel 会话封装 — 一个设备连接对应一个 ChannelSession
+ * <p>authenticated 字段使用 volatile 保证跨 Netty EventLoop 线程可见性</p>
  */
 @Data
 public class ChannelSession {
 
-    /** Netty Channel */
     private Channel channel;
-
-    /** 用户 ID（认证后绑定） */
     private Long userId;
-
-    /** 设备类型: web/ios/android/desktop */
     private String deviceType;
-
-    /** 设备唯一标识 */
     private String deviceId;
-
-    /** 连接时间 */
     private LocalDateTime connectTime;
-
-    /** 最后活跃时间 */
     private LocalDateTime lastActiveTime;
-
-    /** 是否已认证 */
-    private boolean authenticated;
+    /** volatile: Netty EventLoop 线程写入后对 WebSocketHandler 线程立即可见 */
+    private volatile boolean authenticated;
 
     public ChannelSession(Channel channel) {
         this.channel = channel;
@@ -43,6 +31,7 @@ public class ChannelSession {
         this.lastActiveTime = LocalDateTime.now();
     }
 
+    /** 返回 Netty channel 短 ID */
     public String channelId() {
         return channel.id().asShortText();
     }

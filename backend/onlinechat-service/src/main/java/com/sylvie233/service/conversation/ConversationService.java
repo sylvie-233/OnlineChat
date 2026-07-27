@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 /**
  * 会话服务 — 管理用户聊天列表
  */
@@ -18,8 +20,24 @@ public class ConversationService extends ServiceImpl<ConversationMapper, Convers
 
     private final ConversationMapper conversationMapper;
 
+    /** 获取用户聊天列表（置顶优先 + 最后消息时间排序，排除隐藏） */
+    public List<Conversation> getConversations(Long userId) {
+        return lambdaQuery()
+                .eq(Conversation::getUserId, userId)
+                .eq(Conversation::getIsHidden, 0)
+                .orderByDesc(Conversation::getIsPinned)
+                .orderByDesc(Conversation::getUpdateTime)
+                .list();
+    }
+
+    /** 检查会话是否属于指定用户 */
+    public boolean isOwner(Long conversationId, Long userId) {
+        Conversation conv = getById(conversationId);
+        return conv != null && conv.getUserId().equals(userId);
+    }
+
     /**
-     * 更新会话最后一条消息 & 未读计数 +1
+     * 原子更新 — 更新最后消息 + 未读计数+1（SELECT → Java +1 → UPDATE 的替代）
      */
     @Transactional
     public void updateLastMessage(Conversation conv) {
@@ -30,25 +48,51 @@ public class ConversationService extends ServiceImpl<ConversationMapper, Convers
                 .one();
 
         if (exist != null) {
-            exist.setLastMessageId(conv.getLastMessageId());
-            exist.setLastMessageSeq(conv.getLastMessageSeq());
-            exist.setUnreadCount(exist.getUnreadCount() + 1);
-            updateById(exist);
+            // 原子更新：unreadCount+1 + 更新 lastMessage
+            lambdaUpdate()
+                    .eq(Conversation::getId, exist.getId())
+                    .set(Conversation::getLastMessageId, conv.getLastMessageId())
+                    .set(Conversation::getLastMessageSeq, conv.getLastMessageSeq())
+                    .setSql("unread_count = unread_count + 1")
+                    .update();
         } else {
-            // 新会话
             conv.setUnreadCount(1);
             save(conv);
         }
     }
 
-    /**
-     * 清除未读计数
-     */
     @Transactional
     public void clearUnread(Long conversationId) {
-        Conversation conv = new Conversation();
-        conv.setId(conversationId);
-        conv.setUnreadCount(0);
-        updateById(conv);
+        lambdaUpdate().eq(Conversation::getId, conversationId)
+                .set(Conversation::getUnreadCount, 0).update();
+    }
+
+    @Transactional
+    public void setPinned(Long conversationId, boolean pinned) {
+        lambdaUpdate().eq(Conversation::getId, conversationId)
+                .set(Conversation::getIsPinned, pinned ? 1 : 0).update();
+    }
+
+    @Transactional
+    public void setMuted(Long conversationId, boolean muted) {
+        lambdaUpdate().eq(Conversation::getId, conversationId)
+                .set(Conversation::getIsMuted, muted ? 1 : 0).update();
+    }
+
+    @Transactional
+    public void saveDraft(Long conversationId, String draft) {
+        lambdaUpdate().eq(Conversation::getId, conversationId)
+                .set(Conversation::getDraft, draft).update();
+    }
+
+    @Transactional
+    public void setHidden(Long conversationId, boolean hidden) {
+        lambdaUpdate().eq(Conversation::getId, conversationId)
+                .set(Conversation::getIsHidden, hidden ? 1 : 0).update();
+    }
+
+    @Transactional
+    public void deleteConversation(Long conversationId) {
+        removeById(conversationId);
     }
 }

@@ -89,6 +89,9 @@ im:
   snowflake:
     worker-id: 1
     datacenter-id: 1
+  # 消息队列（高并发削峰，默认开启）
+  queue:
+    enabled: true
   # 消息撤回窗口（分钟）
   message:
     recall-window-minutes: 2

@@ -3,11 +3,13 @@ package com.sylvie233.service.cache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Redis 缓存服务
- * <p>管理在线状态、Channel 映射、消息缓存等</p>
+ * Redis 缓存服务 — 在线状态、Channel映射、消息seq、离线消息
  */
 @Service
 @RequiredArgsConstructor
@@ -17,41 +19,26 @@ public class RedisCacheService {
 
     // ==================== 在线状态 ====================
     private static final String ONLINE_KEY_PREFIX = "im:online:";
-    private static final String USER_CHANNEL_KEY = "im:channel:";  // userId -> serverNode:channelId
+    private static final String USER_CHANNEL_KEY = "im:channel:";
 
-    /**
-     * 设置用户在线状态
-     */
     public void setOnline(Long userId, String serverNode) {
         redisTemplate.opsForValue().set(ONLINE_KEY_PREFIX + userId, serverNode, 30, TimeUnit.MINUTES);
     }
 
-    /**
-     * 设置用户离线
-     */
     public void setOffline(Long userId) {
         redisTemplate.delete(ONLINE_KEY_PREFIX + userId);
         redisTemplate.delete(USER_CHANNEL_KEY + userId);
     }
 
-    /**
-     * 查询用户在线状态
-     */
     public boolean isOnline(Long userId) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(ONLINE_KEY_PREFIX + userId));
     }
 
-    /**
-     * 获取用户所在的 Netty 服务器节点
-     */
     public String getServerNode(Long userId) {
         Object val = redisTemplate.opsForValue().get(ONLINE_KEY_PREFIX + userId);
         return val != null ? val.toString() : null;
     }
 
-    /**
-     * 续期（心跳）
-     */
     public void refreshOnline(Long userId) {
         redisTemplate.expire(ONLINE_KEY_PREFIX + userId, 30, TimeUnit.MINUTES);
         redisTemplate.expire(USER_CHANNEL_KEY + userId, 30, TimeUnit.MINUTES);
@@ -59,16 +46,10 @@ public class RedisCacheService {
 
     // ==================== Channel 映射 ====================
 
-    /**
-     * 绑定 userId -> ChannelId
-     */
     public void bindChannel(Long userId, String channelId) {
         redisTemplate.opsForValue().set(USER_CHANNEL_KEY + userId, channelId, 30, TimeUnit.MINUTES);
     }
 
-    /**
-     * 获取用户的 ChannelId
-     */
     public String getChannelId(Long userId) {
         Object val = redisTemplate.opsForValue().get(USER_CHANNEL_KEY + userId);
         return val != null ? val.toString() : null;
@@ -79,11 +60,70 @@ public class RedisCacheService {
     private static final String MSG_SEQ_KEY = "im:seq:";
 
     /**
-     * 获取会话的下一个消息序号（自增）
+     * 获取下一个消息序号（自增），按 seqKey 维度
      */
-    public long nextSeq(Long conversationId) {
-        return Boolean.TRUE.equals(redisTemplate.hasKey(MSG_SEQ_KEY + conversationId))
-                ? redisTemplate.opsForValue().increment(MSG_SEQ_KEY + conversationId)
-                : 1L;
+    public long nextSeq(String seqKey) {
+        Long seq = redisTemplate.opsForValue().increment(MSG_SEQ_KEY + seqKey);
+        return seq != null ? seq : 1L;
+    }
+
+    /**
+     * 获取当前 seq（不自增）
+     */
+    public long currentSeq(String seqKey) {
+        Object val = redisTemplate.opsForValue().get(MSG_SEQ_KEY + seqKey);
+        return val != null ? Long.parseLong(val.toString()) : 0L;
+    }
+
+    // ==================== 离线消息 ====================
+
+    private static final String OFFLINE_MSG_KEY = "im:offline:";
+
+    /**
+     * 存储离线消息到 Redis
+     */
+    public void storeOfflineMessage(Long userId, Object msg) {
+        String key = OFFLINE_MSG_KEY + userId;
+        redisTemplate.opsForList().rightPush(key, msg);
+        redisTemplate.expire(key, 7, TimeUnit.DAYS);
+    }
+
+    /**
+     * 获取并清除离线消息
+     */
+    public List<Object> fetchOfflineMessages(Long userId) {
+        String key = OFFLINE_MSG_KEY + userId;
+        List<Object> messages = new ArrayList<>();
+        while (Boolean.TRUE.equals(redisTemplate.hasKey(key))) {
+            Object msg = redisTemplate.opsForList().leftPop(key);
+            if (msg == null) break;
+            messages.add(msg);
+        }
+        return messages;
+    }
+
+    /**
+     * 离线消息数量
+     */
+    public long offlineMessageCount(Long userId) {
+        String key = OFFLINE_MSG_KEY + userId;
+        Long size = redisTemplate.opsForList().size(key);
+        return size != null ? size : 0;
+    }
+
+    // ==================== 消息发送限流 ====================
+
+    private static final String RATE_LIMIT_KEY = "im:ratelimit:";
+
+    /**
+     * 检查消息发送频率（默认每秒最多5条）
+     */
+    public boolean checkRateLimit(Long userId, int maxPerSecond) {
+        String key = RATE_LIMIT_KEY + userId;
+        Long count = redisTemplate.opsForValue().increment(key);
+        if (count != null && count == 1) {
+            redisTemplate.expire(key, 1, TimeUnit.SECONDS);
+        }
+        return count != null && count <= maxPerSecond;
     }
 }

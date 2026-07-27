@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * WebSocket 消息处理器
+ * WebSocket 消息处理器 — 支持心跳/认证/收发消息/已读/撤回/在线状态/正在输入/转发
  */
 @Slf4j
 @Component
@@ -55,7 +55,6 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
         ChannelSession session = getSession(channel);
 
         if (frame instanceof PingWebSocketFrame) {
-            // 处理 Ping（Netty 自动 Pong 回复）
             channel.writeAndFlush(new PongWebSocketFrame(frame.content().retain()));
             return;
         }
@@ -88,12 +87,12 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
             }
 
             case ImPacket.CMD_AUTH -> {
-                // 认证由 messageRouter 处理
                 messageRouter.handleAuth(channel, session, packet);
             }
 
             case ImPacket.CMD_PRIVATE_MSG,
-                 ImPacket.CMD_GROUP_MSG -> {
+                 ImPacket.CMD_GROUP_MSG,
+                 ImPacket.CMD_FORWARD_MSG -> {
                 if (!session.isAuthenticated()) {
                     channel.writeAndFlush(new TextWebSocketFrame(
                             JSON.toJSONString(ImPacket.error(packet.getSeq(), "请先登录"))));
@@ -105,6 +104,24 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
             case ImPacket.CMD_READ_NOTIFY -> {
                 if (session.isAuthenticated()) {
                     messageRouter.handleReadNotify(session, packet);
+                }
+            }
+
+            case ImPacket.CMD_RECALL_NOTIFY -> {
+                if (session.isAuthenticated()) {
+                    messageRouter.handleRecallNotify(session, packet);
+                }
+            }
+
+            case ImPacket.CMD_ONLINE_NOTIFY -> {
+                if (session.isAuthenticated()) {
+                    messageRouter.handleOnlineStatusNotify(session, packet);
+                }
+            }
+
+            case ImPacket.CMD_TYPING -> {
+                if (session.isAuthenticated()) {
+                    messageRouter.handleTyping(session, packet);
                 }
             }
 

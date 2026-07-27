@@ -21,7 +21,7 @@ public interface MessageMapper extends BaseMapper<Message> {
                                               @Param("limit") int limit);
 
     /**
-     * 查询会话历史消息（向前翻页，seq 游标）
+     * 查询会话历史消息（向前翻页，seq 游标分页：seq < cursorSeq）
      */
     @Select("SELECT * FROM message WHERE conversation_id = #{conversationId} "
             + "AND conversation_type = #{type} AND seq < #{cursorSeq} AND is_deleted = 0 "
@@ -30,4 +30,15 @@ public interface MessageMapper extends BaseMapper<Message> {
                                                @Param("type") Integer type,
                                                @Param("cursorSeq") Long cursorSeq,
                                                @Param("limit") int limit);
+
+    /**
+     * 增量同步 — 获取 seq > sinceSeq 的新消息（正序）
+     */
+    @Select("SELECT * FROM message WHERE conversation_id = #{conversationId} "
+            + "AND conversation_type = #{type} AND seq > #{sinceSeq} AND is_deleted = 0 "
+            + "ORDER BY seq ASC LIMIT #{limit}")
+    List<Message> selectSyncByConversation(@Param("conversationId") Long conversationId,
+                                            @Param("type") Integer type,
+                                            @Param("sinceSeq") Long sinceSeq,
+                                            @Param("limit") int limit);
 }

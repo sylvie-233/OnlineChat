@@ -23,21 +23,17 @@ public class ImPacket {
 
     /** 命令码 */
     private int cmd;
-
     /** 客户端序列号（请求-响应匹配） */
     private long seq;
-
     /** 发送时间戳 */
     private long timestamp;
-
     /** JSON 消息体 */
     private Object body;
 
     // ========== 命令码常量 ==========
 
-    /** 心跳请求 */
+    /** 心跳请求 / 响应 */
     public static final int CMD_HEARTBEAT = 0;
-    /** 心跳响应 */
     public static final int CMD_HEARTBEAT_ACK = 1;
 
     /** 登录认证 */
@@ -46,12 +42,10 @@ public class ImPacket {
 
     /** 单聊消息 */
     public static final int CMD_PRIVATE_MSG = 100;
-    /** 单聊消息 ACK */
     public static final int CMD_PRIVATE_MSG_ACK = 101;
 
     /** 群聊消息 */
     public static final int CMD_GROUP_MSG = 200;
-    /** 群聊消息 ACK */
     public static final int CMD_GROUP_MSG_ACK = 201;
 
     /** 消息已读通知 */
@@ -66,6 +60,13 @@ public class ImPacket {
     public static final int CMD_PUSH_MSG = 500;
     /** 系统通知推送 */
     public static final int CMD_PUSH_NOTIFY = 501;
+
+    /** 正在输入 */
+    public static final int CMD_TYPING = 600;
+    public static final int CMD_TYPING_ACK = 601;
+
+    /** 转发消息 */
+    public static final int CMD_FORWARD_MSG = 700;
 
     /** 错误响应 */
     public static final int CMD_ERROR = -1;
@@ -82,6 +83,10 @@ public class ImPacket {
 
     public static ImPacket push(Object msg) {
         return new ImPacket(CMD_PUSH_MSG, 0, System.currentTimeMillis(), msg);
+    }
+
+    public static ImPacket notify(Object data) {
+        return new ImPacket(CMD_PUSH_NOTIFY, 0, System.currentTimeMillis(), data);
     }
 
     public static ImPacket error(long seq, String msg) {
