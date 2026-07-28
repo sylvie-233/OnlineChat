@@ -55,8 +55,9 @@ public class UserController {
         if (user == null) return Result.notFound();
         if (body.getNickname() != null) user.setNickname(body.getNickname());
         if (body.getAvatar() != null) user.setAvatar(body.getAvatar());
-        if (body.getPhone() != null) user.setPhone(body.getPhone());
-        if (body.getEmail() != null) user.setEmail(body.getEmail());
+        // 空字符串转为 null，避免唯一约束冲突
+        user.setPhone(body.getPhone() != null && !body.getPhone().isBlank() ? body.getPhone() : null);
+        user.setEmail(body.getEmail() != null && !body.getEmail().isBlank() ? body.getEmail() : null);
         if (body.getGender() != null) user.setGender(body.getGender());
         if (body.getBio() != null) user.setBio(body.getBio());
         if (body.getRegion() != null) user.setRegion(body.getRegion());

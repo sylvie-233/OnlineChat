@@ -30,6 +30,19 @@ public class GroupController {
     private final com.sylvie233.service.message.MessageService messageService;
     private final com.sylvie233.service.message.MessageReadService messageReadService;
 
+    @Operation(summary = "搜索群（模糊匹配群名）")
+    @GetMapping("/search")
+    public Result<List<GroupInfo>> searchGroups(@RequestParam(defaultValue = "") String keyword) {
+        if (keyword.isBlank()) return Result.ok(List.of());
+        return Result.ok(groupService.searchGroups(keyword));
+    }
+
+    @Operation(summary = "我的群列表")
+    @GetMapping("/my")
+    public Result<List<GroupInfo>> getMyGroups() {
+        return Result.ok(groupService.getMyGroups(StpUtil.getLoginIdAsLong()));
+    }
+
     @Operation(summary = "创建群")
     @PostMapping
     public Result<GroupInfo> createGroup(@RequestBody Map<String, String> body) {
@@ -58,6 +71,13 @@ public class GroupController {
         return Result.ok("更新成功");
     }
 
+    @Operation(summary = "退出群")
+    @PostMapping("/{groupId}/leave")
+    public Result<?> leaveGroup(@PathVariable Long groupId) {
+        groupService.leaveGroup(groupId, StpUtil.getLoginIdAsLong());
+        return Result.ok("已退出");
+    }
+
     @Operation(summary = "解散群")
     @DeleteMapping("/{groupId}")
     public Result<?> dismissGroup(@PathVariable Long groupId) {
@@ -78,11 +98,11 @@ public class GroupController {
         return Result.ok("加入成功");
     }
 
-    @Operation(summary = "邀请用户入群")
+    @Operation(summary = "邀请用户入群（创建邀请，等待对方接受）")
     @PostMapping("/{groupId}/invite/{inviteeId}")
     public Result<?> inviteMember(@PathVariable Long groupId, @PathVariable Long inviteeId) {
-        groupService.inviteMember(groupId, StpUtil.getLoginIdAsLong(), inviteeId);
-        return Result.ok("已邀请");
+        groupRequestService.inviteUser(groupId, StpUtil.getLoginIdAsLong(), inviteeId, "");
+        return Result.ok("已发送邀请");
     }
 
     @Operation(summary = "踢出成员")
@@ -157,6 +177,14 @@ public class GroupController {
         return Result.ok();
     }
 
+    @Operation(summary = "置顶/取消置顶公告")
+    @PutMapping("/announcement/{announcementId}/pin")
+    public Result<?> toggleAnnouncementPin(@PathVariable Long announcementId,
+                                            @RequestBody Map<String, Boolean> body) {
+        announcementService.togglePin(announcementId, body.getOrDefault("pinned", true));
+        return Result.ok();
+    }
+
     // ==================== 入群申请/邀请 ====================
 
     @Operation(summary = "申请加入群")
@@ -193,10 +221,11 @@ public class GroupController {
     @Operation(summary = "获取群消息已读/未读统计")
     @GetMapping("/message/{messageId}/read-stats")
     public Result<?> getMessageReadStats(@PathVariable Long messageId) {
-        long readCount = messageReadService.getReadCount(messageId);
         Message msg = messageService.getById(messageId);
+        if (msg == null) return Result.fail("消息不存在");
+        long readCount = messageReadService.getReadCount(messageId);
         long totalMembers = groupService.lambdaQuery()
-                .eq(com.sylvie233.repository.entity.GroupInfo::getId, msg != null ? msg.getToId() : 0)
+                .eq(com.sylvie233.repository.entity.GroupInfo::getId, msg.getToId())
                 .oneOpt()
                 .map(com.sylvie233.repository.entity.GroupInfo::getMemberCount)
                 .orElse(0);

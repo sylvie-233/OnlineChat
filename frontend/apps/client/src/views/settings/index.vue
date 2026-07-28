@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { userApi } from '@/api/user'
 import type { UserSetting } from '@/types'
 import SessionManager from './SessionManager.vue'
+import AvatarCropper from '@/components/AvatarCropper.vue'
 
 const auth = useAuthStore()
 const profile = reactive({
@@ -15,7 +16,12 @@ const profile = reactive({
   bio: '',
   region: '',
 })
-const setting = reactive<Partial<UserSetting>>({})
+const setting = reactive<UserSetting>({
+  id: 0, userId: 0,
+  msgNotifyEnabled: 1, soundEnabled: 1, vibrateEnabled: 1, showDetailEnabled: 1,
+  friendVerifyType: 1, groupInviteVerify: 1,
+  theme: 'light', language: 'zh-CN', fontSize: 'medium', chatBgUrl: '',
+})
 const loading = ref(false)
 
 onMounted(async () => {
@@ -28,11 +34,11 @@ onMounted(async () => {
       const u = uRes.data.data
       Object.assign(profile, {
         nickname: u.nickname, avatar: u.avatar,
-        phone: u.phone, email: u.email,
-        gender: u.gender, bio: u.bio, region: u.region,
+        phone: u.phone || '', email: u.email || '',
+        gender: u.gender ?? 0, bio: u.bio || '', region: u.region || '',
       })
     }
-    if (sRes.data.code === 200) {
+    if (sRes.data.code === 200 && sRes.data.data) {
       Object.assign(setting, sRes.data.data)
     }
   } catch (e) { /* ignore */ }
@@ -47,14 +53,15 @@ async function saveProfile() {
     localStorage.setItem('nickname', profile.nickname)
     localStorage.setItem('avatar', profile.avatar)
     message.success('保存成功')
-  } finally { loading.value = false }
+  } catch { message.error('保存失败') }
+  finally { loading.value = false }
 }
 
 async function saveSettings() {
   try {
     await userApi.updateSettings(setting)
     message.success('设置已保存')
-  } catch (e) { /* ignore */ }
+  } catch { message.error('保存失败') }
 }
 </script>
 
@@ -68,8 +75,8 @@ async function saveSettings() {
           <a-form-item label="昵称">
             <a-input v-model:value="profile.nickname" />
           </a-form-item>
-          <a-form-item label="头像URL">
-            <a-input v-model:value="profile.avatar" />
+          <a-form-item label="头像">
+            <AvatarCropper v-model="profile.avatar" />
           </a-form-item>
           <a-form-item label="手机号">
             <a-input v-model:value="profile.phone" />
@@ -97,21 +104,31 @@ async function saveSettings() {
       <a-tab-pane key="prefs" tab="偏好设置">
         <a-form layout="vertical" style="max-width:500px">
           <a-form-item label="消息通知">
-            <a-switch v-model:checked="(setting.msgNotifyEnabled as any)" :checked-value="1" :un-checked-value="0" />
+            <a-switch :checked="setting.msgNotifyEnabled === 1"
+              @update:checked="setting.msgNotifyEnabled = $event ? 1 : 0" />
           </a-form-item>
           <a-form-item label="声音">
-            <a-switch v-model:checked="(setting.soundEnabled as any)" :checked-value="1" :un-checked-value="0" />
+            <a-switch :checked="setting.soundEnabled === 1"
+              @update:checked="setting.soundEnabled = $event ? 1 : 0" />
           </a-form-item>
           <a-form-item label="振动">
-            <a-switch v-model:checked="(setting.vibrateEnabled as any)" :checked-value="1" :un-checked-value="0" />
+            <a-switch :checked="setting.vibrateEnabled === 1"
+              @update:checked="setting.vibrateEnabled = $event ? 1 : 0" />
           </a-form-item>
           <a-form-item label="通知显示详情">
-            <a-switch v-model:checked="(setting.showDetailEnabled as any)" :checked-value="1" :un-checked-value="0" />
+            <a-switch :checked="setting.showDetailEnabled === 1"
+              @update:checked="setting.showDetailEnabled = $event ? 1 : 0" />
           </a-form-item>
           <a-form-item label="主题">
             <a-select v-model:value="setting.theme" style="width:120px">
               <a-select-option value="light">浅色</a-select-option>
               <a-select-option value="dark">深色</a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item label="语言">
+            <a-select v-model:value="setting.language" style="width:120px">
+              <a-select-option value="zh-CN">简体中文</a-select-option>
+              <a-select-option value="en">English</a-select-option>
             </a-select>
           </a-form-item>
           <a-form-item label="字体大小">
@@ -120,6 +137,9 @@ async function saveSettings() {
               <a-select-option value="medium">中</a-select-option>
               <a-select-option value="large">大</a-select-option>
             </a-select>
+          </a-form-item>
+          <a-form-item label="聊天背景URL">
+            <a-input v-model:value="setting.chatBgUrl" placeholder="输入背景图片URL" />
           </a-form-item>
           <a-button type="primary" @click="saveSettings">保存设置</a-button>
         </a-form>

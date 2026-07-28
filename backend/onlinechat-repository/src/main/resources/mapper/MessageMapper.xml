@@ -14,8 +14,8 @@
                    OR (from_user_id = #{targetId} AND to_id = #{userId}))
             </when>
             <otherwise>
-              AND conversation_type = #{type}
-              AND conversation_id = #{conversationId}
+              AND conversation_type = 1
+              AND to_id = #{targetId}
             </otherwise>
           </choose>
         ORDER BY send_time DESC, seq DESC
@@ -34,8 +34,8 @@
                    OR (from_user_id = #{targetId} AND to_id = #{userId}))
             </when>
             <otherwise>
-              AND conversation_type = #{type}
-              AND conversation_id = #{conversationId}
+              AND conversation_type = 1
+              AND to_id = #{targetId}
             </otherwise>
           </choose>
         ORDER BY send_time DESC, seq DESC
@@ -54,8 +54,8 @@
                    OR (from_user_id = #{targetId} AND to_id = #{userId}))
             </when>
             <otherwise>
-              AND conversation_type = #{type}
-              AND conversation_id = #{conversationId}
+              AND conversation_type = 1
+              AND to_id = #{targetId}
             </otherwise>
           </choose>
         ORDER BY seq ASC

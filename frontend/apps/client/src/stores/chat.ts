@@ -41,12 +41,11 @@ export const useChatStore = defineStore('chat', () => {
   let loadReqId = 0
 
   function openConversation(conv: Conversation) {
-    if (!conv.id || conv.id === 0) {
-      const exist = conversations.value.find(
-        (c: Conversation) => c.type === conv.type && c.targetId === conv.targetId
-      )
-      if (exist) conv = exist
-    }
+    // 按 type+targetId 找到真正的会话记录
+    const exist = conversations.value.find(
+      (c: Conversation) => c.type === conv.type && c.targetId === conv.targetId
+    )
+    if (exist) conv = exist
     activeId.value = conv.id
     activeType.value = conv.type
     activeTargetId.value = conv.targetId

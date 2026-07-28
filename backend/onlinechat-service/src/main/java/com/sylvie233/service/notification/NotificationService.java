@@ -41,10 +41,16 @@ public class NotificationService extends ServiceImpl<NotificationMapper, Notific
     /**
      * 分页获取用户通知
      */
-    public Page<Notification> getNotifications(Long userId, int page, int size) {
-        return lambdaQuery()
-                .eq(Notification::getUserId, userId)
-                .orderByDesc(Notification::getCreateTime)
+    public Page<Notification> getNotifications(Long userId, int page, int size, String keyword, Integer isRead) {
+        var query = lambdaQuery().eq(Notification::getUserId, userId);
+        if (keyword != null && !keyword.isBlank()) {
+            query.and(w -> w.like(Notification::getTitle, keyword)
+                    .or().like(Notification::getContent, keyword));
+        }
+        if (isRead != null) {
+            query.eq(Notification::getIsRead, isRead);
+        }
+        return query.orderByDesc(Notification::getCreateTime)
                 .page(new Page<>(page, size));
     }
 

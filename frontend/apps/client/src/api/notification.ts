@@ -2,10 +2,10 @@ import http from './index'
 import type { Notification } from '@/types'
 
 export const notifApi = {
-  getList(page = 1, size = 20) {
+  getList(page = 1, size = 20, keyword = '', isRead?: number) {
     return http.get<{ code: number; data: Notification[]; total: number }>(
       '/api/notification/list',
-      { params: { page, size } },
+      { params: { page, size, keyword, isRead } },
     )
   },
   getUnreadCount() {

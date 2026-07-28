@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { useContactStore } from '@/stores/contact'
 import { useChatStore } from '@/stores/chat'
 import { userApi } from '@/api/user'
@@ -138,7 +138,11 @@ function startChat(contactUser: any) {
 }
 
 function handleDeleteContact(contactUserId: number) {
-  if (confirm('确认删除该好友？')) contact.deleteContact(contactUserId)
+  Modal.confirm({
+    title: '删除好友', content: '确认删除该好友？',
+    okText: '确认删除', cancelText: '取消', okType: 'danger',
+    async onOk() { await contact.deleteContact(contactUserId) },
+  })
 }
 
 async function toggleStar(c: Contact) {
@@ -148,10 +152,14 @@ async function toggleStar(c: Contact) {
 }
 
 async function handleBlock(c: Contact) {
-  if (confirm('确认拉黑该用户？拉黑后双方无法互发消息。')) {
-    await contact.blockUser(c.contactUserId, '手动拉黑')
-    message.success('已拉黑')
-  }
+  Modal.confirm({
+    title: '拉黑用户', content: '拉黑后双方无法互发消息，确认拉黑？',
+    okText: '确认拉黑', cancelText: '取消', okType: 'danger',
+    async onOk() {
+      await contact.blockUser(c.contactUserId, '手动拉黑')
+      message.success('已拉黑')
+    },
+  })
 }
 
 function openMoveGroup(c: Contact) {
@@ -230,14 +238,9 @@ const pendingRequests = computed(() =>
       <div v-if="activeTab === 'friends'" class="contact-list">
         <!-- 分组工具栏 -->
         <div class="group-toolbar">
-          <a-button v-if="!showNewGroup" type="dashed" size="small" block @click="showNewGroup = true">
+          <a-button type="dashed" size="small" block @click="showNewGroup = true">
             <PlusOutlined /> 新建分组
           </a-button>
-          <a-input-group v-else compact size="small">
-            <a-input v-model:value="newGroupName" placeholder="分组名" @press-enter="createGroup" />
-            <a-button type="primary" @click="createGroup">确定</a-button>
-            <a-button @click="showNewGroup = false; newGroupName = ''">取消</a-button>
-          </a-input-group>
         </div>
 
         <!-- 分组区 -->
@@ -345,12 +348,14 @@ const pendingRequests = computed(() =>
             <div style="font-size:12px;color:#999">{{ req.verifyMessage }}</div>
           </div>
           <div v-if="req.status === 0" class="request-actions">
-            <a-button type="primary" size="small" @click="contact.handleRequest(req.id, true)">
-              <CheckOutlined />
-            </a-button>
-            <a-button size="small" @click="contact.handleRequest(req.id, false)">
-              <CloseOutlined />
-            </a-button>
+            <a-popconfirm title="确认同意该好友申请？" @confirm="contact.handleRequest(req.id, true)"
+              okText="确认" cancelText="取消">
+              <a-button type="primary" size="small"><CheckOutlined /></a-button>
+            </a-popconfirm>
+            <a-popconfirm title="确认拒绝该好友申请？" @confirm="contact.handleRequest(req.id, false)"
+              okText="确认" cancelText="取消">
+              <a-button size="small"><CloseOutlined /></a-button>
+            </a-popconfirm>
           </div>
           <a-tag v-else :color="req.status === 1 ? 'green' : 'red'">
             {{ req.status === 1 ? '已同意' : '已拒绝' }}
@@ -380,7 +385,7 @@ const pendingRequests = computed(() =>
 
     <!-- 添加好友弹窗 -->
     <a-modal v-model:open="showAddFriend" title="添加好友" @ok="addFriend"
-      @cancel="selectedUser = null; verifyMessage = ''">
+      @cancel="selectedUser = null; verifyMessage = ''" okText="确定" cancelText="取消">
       <a-form>
         <a-form-item label="对方">
           {{ selectedUser?.nickname }} (@{{ selectedUser?.username }})
@@ -393,13 +398,13 @@ const pendingRequests = computed(() =>
 
     <!-- 备注编辑弹窗 -->
     <a-modal :open="editingRemark.id !== 0" title="修改备注" @ok="saveRemark"
-      @cancel="editingRemark = { id: 0, remark: '' }">
+      @cancel="editingRemark = { id: 0, remark: '' }" okText="保存" cancelText="取消">
       <a-input v-model:value="editingRemark.remark" placeholder="输入备注名" />
     </a-modal>
 
     <!-- 移动分组弹窗 -->
     <a-modal v-model:open="showMoveGroup" title="移动到分组" @ok="doMoveGroup"
-      @cancel="showMoveGroup = false; moveTarget = null">
+      @cancel="showMoveGroup = false; moveTarget = null" okText="确定" cancelText="取消">
       <a-select v-model:value="moveGroupId" style="width:100%">
         <a-select-option :value="0">默认分组</a-select-option>
         <a-select-option v-for="g in contact.groups" :key="g.id" :value="g.id">
@@ -410,8 +415,14 @@ const pendingRequests = computed(() =>
 
     <!-- 重命名分组弹窗 -->
     <a-modal :open="editingGroup.id !== 0" title="重命名分组" @ok="renameGroup"
-      @cancel="editingGroup = { id: 0, name: '' }">
+      @cancel="editingGroup = { id: 0, name: '' }" okText="保存" cancelText="取消">
       <a-input v-model:value="editingGroup.name" placeholder="输入分组名" />
+    </a-modal>
+
+    <!-- 新建分组弹窗 -->
+    <a-modal v-model:open="showNewGroup" title="新建分组" @ok="createGroup"
+      @cancel="showNewGroup = false; newGroupName = ''" okText="确定" cancelText="取消">
+      <a-input v-model:value="newGroupName" placeholder="输入分组名称" />
     </a-modal>
   </div>
 </template>

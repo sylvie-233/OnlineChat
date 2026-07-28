@@ -2,6 +2,12 @@ import http from './index'
 import type { GroupInfo, GroupMember, GroupAnnouncement, GroupRequest } from '@/types'
 
 export const groupApi = {
+  search(keyword: string) {
+    return http.get<{ code: number; data: GroupInfo[] }>('/api/group/search', { params: { keyword } })
+  },
+  getMyGroups() {
+    return http.get<{ code: number; data: GroupInfo[] }>('/api/group/my')
+  },
   create(groupName: string) {
     return http.post('/api/group', { groupName })
   },
@@ -20,6 +26,9 @@ export const groupApi = {
   join(groupId: number) {
     return http.post(`/api/group/${groupId}/join`)
   },
+  leave(groupId: number) {
+    return http.post(`/api/group/${groupId}/leave`)
+  },
   invite(groupId: number, inviteeId: number) {
     return http.post(`/api/group/${groupId}/invite/${inviteeId}`)
   },
@@ -31,6 +40,9 @@ export const groupApi = {
   },
   setMemberNickname(groupId: number, userId: number, nickname: string) {
     return http.put(`/api/group/${groupId}/member/${userId}/nickname`, { nickname })
+  },
+  updateMemberSettings(groupId: number, isMuted?: number, isPinned?: number) {
+    return http.put(`/api/group/${groupId}/member/settings`, { isMuted, isPinned })
   },
   applyJoin(groupId: number, verifyMessage: string) {
     return http.post(`/api/group/${groupId}/apply`, { verifyMessage })
@@ -61,6 +73,9 @@ export const groupApi = {
   },
   markAnnouncementRead(announcementId: number) {
     return http.put(`/api/group/announcement/${announcementId}/read`)
+  },
+  toggleAnnouncementPin(announcementId: number, pinned: boolean) {
+    return http.put(`/api/group/announcement/${announcementId}/pin`, { pinned })
   },
   getMessageReadStats(messageId: number) {
     return http.get(`/api/group/message/${messageId}/read-stats`)

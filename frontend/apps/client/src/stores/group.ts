@@ -9,26 +9,14 @@ export const useGroupStore = defineStore('group', () => {
   const announcements = ref<GroupAnnouncement[]>([])
   const requests = ref<GroupRequest[]>([])
   const invitations = ref<GroupRequest[]>([])
+  const groupNameCache = reactive<Map<number, string>>(new Map())
   const loading = ref(false)
 
   async function loadMyGroups() {
     loading.value = true
     try {
-      // 从会话列表中筛选所有 type=1 的群聊
-      const useChatStore = (await import('@/stores/chat')).useChatStore
-      const chat = useChatStore()
-      const groupIds = chat.conversations
-        .filter((c: any) => c.type === 1)
-        .map((c: any) => c.targetId)
-      // 加载每个群的信息
-      const infos: GroupInfo[] = []
-      for (const id of groupIds) {
-        try {
-          const { data } = await groupApi.getById(id)
-          if (data.code === 200 && data.data) infos.push(data.data)
-        } catch (e) { /* skip */ }
-      }
-      myGroups.value = infos
+      const { data } = await groupApi.getMyGroups()
+      if (data.code === 200) myGroups.value = data.data || []
     } finally {
       loading.value = false
     }
@@ -45,6 +33,16 @@ export const useGroupStore = defineStore('group', () => {
       if (info.data.code === 200) currentGroup.value = info.data.data
       if (m.data.code === 200) members.value = m.data.data || []
       if (a.data.code === 200) announcements.value = a.data.data || []
+      // 加载入群申请（后台静默，不阻塞）
+      try {
+        const r = await groupApi.getRequests(groupId)
+        if (r.data.code === 200) requests.value = r.data.data || []
+      } catch { /* ignore */ }
+      // 预加载成员用户信息
+      const useContactStore = (await import('@/stores/contact')).useContactStore
+      for (const member of members.value) {
+        useContactStore().getUserInfo(member.userId)
+      }
     } finally {
       loading.value = false
     }
@@ -70,8 +68,45 @@ export const useGroupStore = defineStore('group', () => {
     await openGroup(groupId)
   }
 
+  async function setMemberNickname(groupId: number, userId: number, nickname: string) {
+    await groupApi.setMemberNickname(groupId, userId, nickname)
+    await openGroup(groupId)
+  }
+
+  async function leaveGroup(groupId: number) {
+    await groupApi.leave(groupId)
+    currentGroup.value = null
+    await loadMyGroups()
+  }
+
   async function publishAnnouncement(groupId: number, title: string, content: string) {
     await groupApi.publishAnnouncement(groupId, title, content)
+    await openGroup(groupId)
+  }
+
+  async function deleteAnnouncement(annId: number, groupId: number) {
+    await groupApi.deleteAnnouncement(annId)
+    await openGroup(groupId)
+  }
+
+  async function markAnnouncementRead(annId: number) {
+    await groupApi.markAnnouncementRead(annId)
+  }
+
+  async function toggleAnnouncementPin(annId: number, pinned: boolean, groupId: number) {
+    await groupApi.toggleAnnouncementPin(annId, pinned)
+    await openGroup(groupId)
+  }
+
+  async function loadRequests(groupId: number) {
+    try {
+      const { data } = await groupApi.getRequests(groupId)
+      if (data.code === 200) requests.value = data.data || []
+    } catch (e) { /* ignore */ }
+  }
+
+  async function handleRequest(requestId: number, agree: boolean, groupId: number) {
+    await groupApi.handleRequest(requestId, agree)
     await openGroup(groupId)
   }
 
@@ -79,12 +114,29 @@ export const useGroupStore = defineStore('group', () => {
     try {
       const { data } = await groupApi.getInvitations()
       if (data.code === 200) invitations.value = data.data || []
+      // 预加载群名称
+      for (const r of invitations.value) {
+        if (!groupNameCache.has(r.groupId)) {
+          try {
+            const { data: g } = await groupApi.getById(r.groupId)
+            if (g.code === 200 && g.data) groupNameCache.set(r.groupId, g.data.groupName)
+          } catch { /* skip */ }
+        }
+      }
     } catch (e) { /* ignore */ }
   }
 
+  async function acceptInvitation(requestId: number, groupId: number) {
+    await groupApi.handleRequest(requestId, true)
+    await loadInvitations()
+    await loadMyGroups()
+  }
+
   return {
-    myGroups, currentGroup, members, announcements, requests, invitations, loading,
+    myGroups, currentGroup, members, announcements, requests, invitations, groupNameCache, loading,
     loadMyGroups, openGroup, createGroup, updateSettings, kickMember,
-    setMemberRole, publishAnnouncement, loadInvitations,
+    setMemberRole, setMemberNickname, leaveGroup, publishAnnouncement,
+    deleteAnnouncement, markAnnouncementRead, toggleAnnouncementPin,
+    loadRequests, handleRequest, acceptInvitation, loadInvitations,
   }
 })

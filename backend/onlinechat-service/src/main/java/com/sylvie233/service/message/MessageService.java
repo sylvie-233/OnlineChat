@@ -37,6 +37,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
     private final NotificationService notificationService;
     private final ConversationService conversationService;
     private final com.sylvie233.repository.mapper.ConversationMapper conversationMapper;
+    private final com.sylvie233.repository.mapper.GroupMemberMapper groupMemberMapper;
 
     private static final Pattern MENTION_PATTERN = Pattern.compile("@\\{(\\d+)\\}");
 
@@ -189,9 +190,9 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
         return messageMapper.selectSyncByConversation(conversationId, type.getCode(), currentUserId, targetId, cursorTime, limit);
     }
 
-    /** 私聊解析对方 userId，群聊返回 null（不需要） */
+    /** 从 conversation 记录中解析 targetId（私聊=对方userId，群聊=groupId） */
     private Long resolveTargetId(Long conversationId, ConversationType type, Long currentUserId) {
-        if (type == ConversationType.PRIVATE && conversationId != null && conversationId > 0) {
+        if (conversationId != null && conversationId > 0) {
             com.sylvie233.repository.entity.Conversation conv = conversationMapper.selectById(conversationId);
             return conv != null ? conv.getTargetId() : null;
         }
@@ -330,8 +331,14 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
             conversationService.updateLastMessage(buildConv(toId, 0, fromUserId, msg), true);
             conversationService.updateLastMessage(buildConv(fromUserId, 0, toId, msg), false);
         } else {
-            // 群聊：更新所有群成员的会话（除发送者）
-            // TODO
+            // 群聊：更新所有群成员的会话（除发送者不加未读）
+            java.util.List<com.sylvie233.repository.entity.GroupMember> members = groupMemberMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.sylvie233.repository.entity.GroupMember>()
+                            .eq(com.sylvie233.repository.entity.GroupMember::getGroupId, toId));
+            for (com.sylvie233.repository.entity.GroupMember member : members) {
+                boolean isSender = member.getUserId().equals(fromUserId);
+                conversationService.updateLastMessage(buildConv(member.getUserId(), 1, toId, msg), !isSender);
+            }
         }
     }
 

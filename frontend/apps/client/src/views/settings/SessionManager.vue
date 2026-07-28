@@ -42,7 +42,9 @@ async function kickSession(sessionId: number) {
             {{ s.clientIp || '' }} · 活跃: {{ s.lastActiveTime }}
           </div>
         </div>
-        <a-button size="small" danger @click="kickSession(s.id)">登出</a-button>
+        <a-popconfirm title="确认登出该设备？" @confirm="kickSession(s.id)" okText="确认" cancelText="取消">
+          <a-button size="small" danger>登出</a-button>
+        </a-popconfirm>
       </div>
     </div>
     <a-empty v-else description="暂无活跃会话" />

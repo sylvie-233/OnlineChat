@@ -2,12 +2,15 @@ package com.sylvie233.service.group;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.sylvie233.common.exception.BizException;
+import com.sylvie233.repository.entity.Conversation;
 import com.sylvie233.repository.entity.GroupInfo;
 import com.sylvie233.repository.entity.GroupMember;
 import com.sylvie233.repository.entity.GroupRequest;
+import com.sylvie233.repository.mapper.ConversationMapper;
 import com.sylvie233.repository.mapper.GroupInfoMapper;
 import com.sylvie233.repository.mapper.GroupMemberMapper;
 import com.sylvie233.repository.mapper.GroupRequestMapper;
+import com.sylvie233.service.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,6 +30,8 @@ public class GroupRequestService extends ServiceImpl<GroupRequestMapper, GroupRe
     private final GroupRequestMapper groupRequestMapper;
     private final GroupMemberMapper groupMemberMapper;
     private final GroupInfoMapper groupInfoMapper;
+    private final ConversationMapper conversationMapper;
+    private final NotificationService notificationService;
 
     /**
      * 申请加入群
@@ -63,7 +68,7 @@ public class GroupRequestService extends ServiceImpl<GroupRequestMapper, GroupRe
     }
 
     /**
-     * 邀请用户入群
+     * 邀请用户入群 — 创建邀请记录，等待被邀请者接受
      */
     @Transactional
     public GroupRequest inviteUser(Long groupId, Long inviterId, Long inviteeId, String verifyMessage) {
@@ -71,9 +76,16 @@ public class GroupRequestService extends ServiceImpl<GroupRequestMapper, GroupRe
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GroupMember>()
                         .eq(GroupMember::getGroupId, groupId)
                         .eq(GroupMember::getUserId, inviteeId));
-        if (exist != null) {
-            throw BizException.of("该用户已在群内");
-        }
+        if (exist != null) throw BizException.of("该用户已在群内");
+
+        // 检查是否有待处理的邀请
+        GroupRequest pending = lambdaQuery()
+                .eq(GroupRequest::getGroupId, groupId)
+                .eq(GroupRequest::getToUserId, inviteeId)
+                .eq(GroupRequest::getType, 1)
+                .eq(GroupRequest::getStatus, 0)
+                .one();
+        if (pending != null) throw BizException.of("已向该用户发送过邀请");
 
         GroupRequest request = new GroupRequest();
         request.setGroupId(groupId);
@@ -83,6 +95,12 @@ public class GroupRequestService extends ServiceImpl<GroupRequestMapper, GroupRe
         request.setVerifyMessage(verifyMessage);
         request.setStatus(0);
         save(request);
+
+        // 通知被邀请者
+        GroupInfo group = groupInfoMapper.selectById(groupId);
+        String groupName = group != null ? group.getGroupName() : "群聊";
+        notificationService.send(inviteeId, 2,
+                "群邀请", "用户" + inviterId + " 邀请你加入群「" + groupName + "」", groupId);
         return request;
     }
 
@@ -114,6 +132,18 @@ public class GroupRequestService extends ServiceImpl<GroupRequestMapper, GroupRe
                 group.setMemberCount(group.getMemberCount() + 1);
                 groupInfoMapper.updateById(group);
             }
+            // 创建会话 + 通知
+            createConversation(userId, request.getGroupId());
+            String groupName = group != null ? group.getGroupName() : "群聊";
+            if (request.getType() == 1) {
+                // 邀请被接受 → 通知邀请者
+                notificationService.send(request.getFromUserId(), 2,
+                        "邀请已被接受", "用户" + userId + " 已接受邀请加入群「" + groupName + "」", request.getGroupId());
+            } else {
+                // 申请被通过 → 通知申请人
+                notificationService.send(userId, 2,
+                        "入群申请已通过", "你已加入群「" + groupName + "」", request.getGroupId());
+            }
         }
     }
 
@@ -128,6 +158,21 @@ public class GroupRequestService extends ServiceImpl<GroupRequestMapper, GroupRe
                 .list();
     }
 
+    private void createConversation(Long userId, Long groupId) {
+        Conversation exist = conversationMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Conversation>()
+                        .eq(Conversation::getUserId, userId)
+                        .eq(Conversation::getType, 1)
+                        .eq(Conversation::getTargetId, groupId));
+        if (exist != null) return;
+        Conversation conv = new Conversation();
+        conv.setUserId(userId);
+        conv.setType(1);
+        conv.setTargetId(groupId);
+        conv.setUnreadCount(0);
+        conversationMapper.insert(conv);
+    }
+
     /**
      * 获取用户收到的入群邀请
      */
@@ -135,6 +180,7 @@ public class GroupRequestService extends ServiceImpl<GroupRequestMapper, GroupRe
         return lambdaQuery()
                 .eq(GroupRequest::getToUserId, userId)
                 .eq(GroupRequest::getType, 1)
+                .eq(GroupRequest::getStatus, 0)
                 .orderByDesc(GroupRequest::getCreateTime)
                 .list();
     }

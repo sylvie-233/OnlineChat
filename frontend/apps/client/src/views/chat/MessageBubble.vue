@@ -5,6 +5,7 @@ import { chatApi } from '@/api/chat'
 import { RollbackOutlined, CopyOutlined, EyeOutlined } from '@ant-design/icons-vue'
 
 import { useChatStore } from '@/stores/chat'
+import { useContactStore } from '@/stores/contact'
 
 const props = defineProps<{ message: Message; isMine: boolean }>()
 const emit = defineEmits<{ recall: []; reply: [] }>()
@@ -13,14 +14,24 @@ const chat = useChatStore()
 
 const senderName = computed(() => {
   if (props.isMine) return ''
-  // 单聊：对方就是当前会话的人
   if (props.message.conversationType === 0) return chat.activeName
-  // 群聊：从 extra 中取 fromNickname
   if (props.message.fromNickname) return props.message.fromNickname
   try {
     const ex = JSON.parse(props.message.extra || '{}')
     return ex.fromNickname || `用户${props.message.fromUserId}`
   } catch { return `用户${props.message.fromUserId}` }
+})
+
+const senderAvatar = computed(() => {
+  if (props.isMine) return ''
+  // 单聊：从当前会话取头像
+  if (props.message.conversationType === 0) {
+    const conv = chat.conversations.find((c: any) => c.type === 0 && c.targetId === props.message.fromUserId)
+    return conv?.targetAvatar || ''
+  }
+  // 群聊：从联系人缓存取
+  const contactStore = useContactStore()
+  return contactStore.userCache.get(props.message.fromUserId)?.avatar || ''
 })
 
 const showMenu = ref(false)
@@ -84,7 +95,7 @@ async function loadReactions() {
 <template>
   <div :class="['msg-row', isMine ? 'msg-mine' : 'msg-other']">
     <!-- 发送者头像（非自己的消息） -->
-    <a-avatar v-if="!isMine" :size="32" class="msg-avatar">
+    <a-avatar v-if="!isMine" :size="32" class="msg-avatar" :src="senderAvatar">
       {{ (senderName || '?').charAt(0) }}
     </a-avatar>
 

@@ -146,6 +146,14 @@ public class ContactService extends ServiceImpl<ContactMapper, Contact> {
                 .eq(Contact::getContactUserId, toUserId).one();
         if (exist != null) throw BizException.of("已经是好友了");
 
+        // 检查是否有待处理的申请
+        FriendRequest pending = friendRequestMapper.selectOne(
+                new LambdaQueryWrapper<FriendRequest>()
+                        .eq(FriendRequest::getFromUserId, fromUserId)
+                        .eq(FriendRequest::getToUserId, toUserId)
+                        .eq(FriendRequest::getStatus, 0));
+        if (pending != null) throw BizException.of("已有待处理的好友申请");
+
         // 检查黑名单
         Blocklist blocked;
         blocked = blocklistMapper.selectOne(

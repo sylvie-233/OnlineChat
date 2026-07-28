@@ -22,12 +22,14 @@ public class NotificationController {
 
     private final NotificationService notificationService;
 
-    @Operation(summary = "获取通知列表(分页)")
+    @Operation(summary = "获取通知列表(分页+搜索+筛选)")
     @GetMapping("/list")
     public Result<?> getNotifications(@RequestParam(name = "page", defaultValue = "1") int page,
-                                       @RequestParam(name = "size", defaultValue = "20") int size) {
+                                       @RequestParam(name = "size", defaultValue = "20") int size,
+                                       @RequestParam(name = "keyword", defaultValue = "") String keyword,
+                                       @RequestParam(name = "isRead", required = false) Integer isRead) {
         Long userId = StpUtil.getLoginIdAsLong();
-        Page<Notification> pageResult = notificationService.getNotifications(userId, page, size);
+        Page<Notification> pageResult = notificationService.getNotifications(userId, page, size, keyword, isRead);
         return PageResult.of(pageResult.getRecords(), pageResult.getTotal(), page, size);
     }
 
