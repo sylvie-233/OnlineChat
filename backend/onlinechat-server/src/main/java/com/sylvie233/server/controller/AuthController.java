@@ -5,6 +5,7 @@ import cn.hutool.crypto.digest.BCrypt;
 import com.sylvie233.common.model.dto.LoginRequest;
 import com.sylvie233.common.model.resp.Result;
 import com.sylvie233.repository.entity.User;
+import com.sylvie233.service.cache.RedisCacheService;
 import com.sylvie233.service.user.UserService;
 import com.sylvie233.service.user.SessionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,6 +28,7 @@ public class AuthController {
 
     private final UserService userService;
     private final SessionService sessionService;
+    private final RedisCacheService redisCacheService;
 
     @Operation(summary = "注册")
     @PostMapping("/register")
@@ -86,6 +88,7 @@ public class AuthController {
         Long userId = StpUtil.getLoginIdAsLong();
         StpUtil.logout();
         userService.offline(userId);
+        redisCacheService.setOffline(userId);
         return Result.ok();
     }
 

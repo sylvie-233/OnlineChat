@@ -67,23 +67,23 @@ public class MessageController {
     @GetMapping("/history")
     public Result<List<Message>> getHistory(@RequestParam Long conversationId,
                                              @RequestParam(defaultValue = "0") int type,
-                                             @RequestParam Long cursorSeq,
+                                             @RequestParam String cursorTime,
                                              @RequestParam(defaultValue = "20") int limit) {
         ConversationType convType = ConversationType.values()[type];
         Long userId = StpUtil.getLoginIdAsLong();
-        return Result.ok(messageService.getHistoryMessages(conversationId, convType, cursorSeq, limit, userId));
+        return Result.ok(messageService.getHistoryMessages(conversationId, convType, cursorTime, limit, userId));
     }
 
-    @Operation(summary = "增量同步(seq游标): 拉取 sinceSeq 之后的新消息")
+    @Operation(summary = "增量同步(sinceTime游标): 拉取 sinceTime 之后的新消息")
     @GetMapping("/sync")
     public Result<List<Message>> sync(@RequestParam Long conversationId,
                                        @RequestParam(defaultValue = "0") int type,
-                                       @RequestParam Long sinceSeq,
+                                       @RequestParam String sinceTime,
                                        @RequestParam(defaultValue = "50") int limit) {
         try {
             ConversationType convType = ConversationType.values()[type];
             Long userId = StpUtil.getLoginIdAsLong();
-            return Result.ok(messageService.getSyncMessages(conversationId, convType, sinceSeq, limit, userId));
+            return Result.ok(messageService.getSyncMessages(conversationId, convType, sinceTime, limit, userId));
         } catch (IndexOutOfBoundsException e) {
             return Result.fail("无效的会话类型");
         }

@@ -28,14 +28,14 @@ export const chatApi = {
       params: { conversationId, type, limit },
     })
   },
-  getHistory(conversationId: number, type: number, cursorSeq: number, limit = 20) {
+  getHistory(conversationId: number, type: number, cursorTime: string, limit = 20) {
     return http.get<{ code: number; data: Message[] }>('/api/message/history', {
-      params: { conversationId, type, cursorSeq, limit },
+      params: { conversationId, type, cursorTime, limit },
     })
   },
-  syncMessages(conversationId: number, type: number, sinceSeq: number, limit = 50) {
+  syncMessages(conversationId: number, type: number, sinceTime: string, limit = 50) {
     return http.get<{ code: number; data: Message[] }>('/api/message/sync', {
-      params: { conversationId, type, sinceSeq, limit },
+      params: { conversationId, type, sinceTime, limit },
     })
   },
   recallMessage(messageId: number, reason?: string) {

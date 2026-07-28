@@ -127,7 +127,9 @@ public class MessageRouter {
         // 携带发送者昵称（用于前端显示，不依赖 userId 比对）
         com.sylvie233.repository.entity.User sender = userService.getById(session.getUserId());
         if (sender != null && msg.getExtra() == null) {
-            msg.setExtra("{\"fromNickname\":\"" + (sender.getNickname() != null ? sender.getNickname() : "") + "\"}");
+            com.alibaba.fastjson2.JSONObject extra = new com.alibaba.fastjson2.JSONObject();
+            extra.put("fromNickname", sender.getNickname() != null ? sender.getNickname() : "");
+            msg.setExtra(extra.toString());
         }
         return msg;
     }

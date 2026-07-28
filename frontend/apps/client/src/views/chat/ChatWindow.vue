@@ -34,14 +34,27 @@ const mentionTargets = ref<any[]>([])
 const activeMessages = computed(() => chat.messages)
 const quickEmojis = ['😊','😂','❤️','👍','😢','🎉','🔥','👏','🙏','💪','🤔','😎','🌸','⭐','💯']
 
-function scrollToBottom() {
+const needScroll = ref(false)
+
+function scrollToBottom(force = false) {
   nextTick(() => {
-    if (msgList.value) msgList.value.scrollTop = msgList.value.scrollHeight
+    if (!msgList.value) return
+    const el = msgList.value
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 80
+    if (force || needScroll.value || atBottom) {
+      el.scrollTop = el.scrollHeight
+      needScroll.value = false
+    }
   })
 }
 
-watch(() => chat.activeId, () => scrollToBottom())
+watch(() => chat.activeId, () => { needScroll.value = true; scrollToBottom(true) })
 watch(() => chat.messages.length, () => scrollToBottom())
+// 标记加载完成后需要滚到底部
+watch(() => chat.loading, (val) => {
+  if (!val) needScroll.value = true
+  nextTick(() => scrollToBottom())
+})
 
 // 发送消息
 function sendMessage() {
@@ -208,7 +221,7 @@ wsClient.on(CMD.TYPING_ACK, () => {
       <a-spin v-if="chat.loading" size="small" class="msg-loading" />
       <div v-for="msg in activeMessages" :key="msg.id">
         <div v-if="msg.isRecalled" class="msg-notice">
-          {{ msg.fromUserId === auth.userId ? '你' : '对方' }}撤回了一条消息
+          {{ Number(msg.fromUserId) === auth.userId ? '你' : '对方' }}撤回了一条消息
         </div>
         <MessageBubble
           v-else

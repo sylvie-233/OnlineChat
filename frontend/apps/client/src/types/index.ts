@@ -88,7 +88,7 @@ export interface Conversation {
 
 // ==================== 消息 ====================
 export interface Message {
-  id: string  // Snowflake ID → JS String（避免精度丢失）
+  id: number  // Snowflake 46-bit < 2^53，安全落在 JS number 范围
   seq: number
   conversationType: number
   conversationId: number

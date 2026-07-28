@@ -27,6 +27,11 @@ public class SessionService extends ServiceImpl<UserSessionMapper, UserSession> 
     @Transactional
     public UserSession createSession(Long userId, String token, String deviceType,
                                       String deviceName, String deviceId, String clientIp) {
+        // 删除同一 token 的旧记录（避免 uk_token 冲突）
+        lambdaUpdate()
+                .eq(UserSession::getToken, token)
+                .remove();
+
         // 踢掉同设备的旧会话
         lambdaUpdate()
                 .eq(UserSession::getUserId, userId)

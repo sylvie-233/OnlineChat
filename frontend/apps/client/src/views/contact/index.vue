@@ -26,14 +26,22 @@ const editingRemark = ref({ id: 0, remark: '' })
 
 onMounted(async () => {
   await contact.loadAll()
-  // 预加载好友的用户信息
+  preloadUserInfo()
+})
+
+// 切换子 tab 时重新加载
+watch(activeTab, () => {
+  contact.loadAll().then(() => preloadUserInfo())
+})
+
+function preloadUserInfo() {
   for (const c of contact.contacts) {
     contact.getUserInfo(c.contactUserId)
   }
   for (const b of contact.blocklist) {
     contact.getUserInfo(b.blockedUserId)
   }
-})
+}
 
 // 获取好友显示名称
 function getDisplayName(contactUserId: number, remark?: string) {

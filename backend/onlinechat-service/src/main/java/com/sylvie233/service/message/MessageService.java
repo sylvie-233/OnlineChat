@@ -8,6 +8,7 @@ import com.sylvie233.repository.entity.MessageRecall;
 import com.sylvie233.repository.mapper.MessageMapper;
 import com.sylvie233.repository.mapper.MessageRecallMapper;
 import com.sylvie233.service.cache.RedisCacheService;
+import com.sylvie233.service.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
     private final MessageMentionService mentionService;
     private final RedisCacheService redisCacheService;
     private final MessageQueueProducer queueProducer;
+    private final NotificationService notificationService;
     private final com.sylvie233.repository.mapper.ConversationMapper conversationMapper;
 
     private static final Pattern MENTION_PATTERN = Pattern.compile("@\\{(\\d+)\\}");
@@ -84,6 +86,12 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
 
         // 4. 解析 @提及
         parseAndCreateMentions(msg);
+
+        // 5. 单聊时给接收方生成通知
+        if (msg.getConversationType() != null && msg.getConversationType() == 0) {
+            notificationService.send(msg.getToId(), 4,
+                    "新消息", truncateContent(msg.getContent()), msg.getId());
+        }
 
         return msg;
     }
@@ -151,26 +159,38 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
     }
 
     /**
-     * 拉取会话最新 N 条消息（私聊按 userId 双查双方的消息）
+     * 拉取会话最新 N 条消息（私聊按用户对双查，群聊按 conversationId）
      */
     public List<Message> getLatestMessages(Long conversationId, ConversationType type, int limit, Long currentUserId) {
-        return messageMapper.selectLatestByConversation(conversationId, type.getCode(), currentUserId, limit);
+        Long targetId = resolveTargetId(conversationId, type, currentUserId);
+        return messageMapper.selectLatestByConversation(conversationId, type.getCode(), currentUserId, targetId, limit);
     }
 
     /**
-     * 向前翻页（私聊按 userId 双查双方的消息）
+     * 向前翻页
      */
     public List<Message> getHistoryMessages(Long conversationId, ConversationType type,
-                                             Long cursorSeq, int limit, Long currentUserId) {
-        return messageMapper.selectHistoryByConversation(conversationId, type.getCode(), currentUserId, cursorSeq, limit);
+                                             String cursorTime, int limit, Long currentUserId) {
+        Long targetId = resolveTargetId(conversationId, type, currentUserId);
+        return messageMapper.selectHistoryByConversation(conversationId, type.getCode(), currentUserId, targetId, cursorTime, limit);
     }
 
     /**
      * 增量同步
      */
     public List<Message> getSyncMessages(Long conversationId, ConversationType type,
-                                          Long sinceSeq, int limit, Long currentUserId) {
-        return messageMapper.selectSyncByConversation(conversationId, type.getCode(), currentUserId, sinceSeq, limit);
+                                          String cursorTime, int limit, Long currentUserId) {
+        Long targetId = resolveTargetId(conversationId, type, currentUserId);
+        return messageMapper.selectSyncByConversation(conversationId, type.getCode(), currentUserId, targetId, cursorTime, limit);
+    }
+
+    /** 私聊解析对方 userId，群聊返回 null（不需要） */
+    private Long resolveTargetId(Long conversationId, ConversationType type, Long currentUserId) {
+        if (type == ConversationType.PRIVATE && conversationId != null && conversationId > 0) {
+            com.sylvie233.repository.entity.Conversation conv = conversationMapper.selectById(conversationId);
+            return conv != null ? conv.getTargetId() : null;
+        }
+        return null;
     }
 
     /**
@@ -291,6 +311,11 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
         conversationMapper.insert(conv);
         log.info("自动创建会话: convId={}, userId={}, targetId={}", conv.getId(), userId, targetId);
         return conv.getId();
+    }
+
+    private String truncateContent(String content) {
+        if (content == null) return "";
+        return content.length() > 50 ? content.substring(0, 50) + "..." : content;
     }
 
     private String buildSeqKey(Message msg) {

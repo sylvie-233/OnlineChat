@@ -55,7 +55,7 @@ public class NettyWebSocketServer {
                     protected void initChannel(Channel ch) {
                         ChannelPipeline pipeline = ch.pipeline();
                         // 心跳检测: 读空闲 60s 触发
-                        pipeline.addLast(new IdleStateHandler(60, 0, 0, TimeUnit.SECONDS));
+                        pipeline.addLast(new IdleStateHandler(300, 0, 0, TimeUnit.SECONDS));
                         // HTTP 编解码
                         pipeline.addLast(new HttpServerCodec());
                         // 大数据流支持

@@ -85,10 +85,6 @@ im:
   websocket:
     port: 9090
     path: /ws
-  # 雪花算法 workerId（多实例部署时每个节点不同）
-  snowflake:
-    worker-id: 1
-    datacenter-id: 1
   # 消息队列（高并发削峰，默认关闭，需配合 Redis Stream 使用）
   queue:
     enabled: false

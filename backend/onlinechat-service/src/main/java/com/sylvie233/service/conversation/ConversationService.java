@@ -2,7 +2,11 @@ package com.sylvie233.service.conversation;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.sylvie233.repository.entity.Conversation;
+import com.sylvie233.repository.entity.GroupInfo;
+import com.sylvie233.repository.entity.User;
 import com.sylvie233.repository.mapper.ConversationMapper;
+import com.sylvie233.repository.mapper.GroupInfoMapper;
+import com.sylvie233.repository.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,15 +23,41 @@ import java.util.List;
 public class ConversationService extends ServiceImpl<ConversationMapper, Conversation> {
 
     private final ConversationMapper conversationMapper;
+    private final UserMapper userMapper;
+    private final GroupInfoMapper groupInfoMapper;
 
     /** 获取用户聊天列表（置顶优先 + 最后消息时间排序，排除隐藏） */
     public List<Conversation> getConversations(Long userId) {
-        return lambdaQuery()
+        List<Conversation> list = lambdaQuery()
                 .eq(Conversation::getUserId, userId)
                 .eq(Conversation::getIsHidden, 0)
                 .orderByDesc(Conversation::getIsPinned)
                 .orderByDesc(Conversation::getUpdateTime)
                 .list();
+
+        // 填充 targetName / targetAvatar
+        for (Conversation c : list) {
+            if (c.getType() == 0) {
+                // 单聊 — 查对方用户
+                User target = userMapper.selectById(c.getTargetId());
+                if (target != null) {
+                    c.setTargetName(target.getNickname() != null ? target.getNickname() : target.getUsername());
+                    c.setTargetAvatar(target.getAvatar() != null ? target.getAvatar() : "");
+                } else {
+                    c.setTargetName("用户" + c.getTargetId());
+                }
+            } else {
+                // 群聊 — 查群信息
+                GroupInfo group = groupInfoMapper.selectById(c.getTargetId());
+                if (group != null) {
+                    c.setTargetName(group.getGroupName());
+                    c.setTargetAvatar(group.getAvatar() != null ? group.getAvatar() : "");
+                } else {
+                    c.setTargetName("群聊" + c.getTargetId());
+                }
+            }
+        }
+        return list;
     }
 
     /** 检查会话是否属于指定用户 */

@@ -45,7 +45,7 @@ backend/
 │       ├── model/
 │       │   ├── dto/                 # 请求 DTO（8 个）
 │       │   └── resp/                # Result / PageResult
-│       └── util/                    # SnowflakeIdWorker
+│       └── util/                    # SnowflakeIdWorker（46-bit 轻量版，ID < 2^53）
 ├── onlinechat-repository/           # 数据访问层
 │   └── src/main/java/com/sylvie233/repository/
 │       ├── config/                  # MyBatis-Plus 自动填充
@@ -71,7 +71,6 @@ backend/
 ├── onlinechat-task/                 # 异步 + 定时任务
 │   └── src/main/java/com/sylvie233/task/
 │       ├── consumer/                # 消息队列消费者
-│       ├── event/                   # 消息事件监听器
 │       └── scheduler/               # 会话清理 + 消息归档
 └── onlinechat-server/               # Web 入口 + REST Controller
     └── src/main/java/com/sylvie233/server/
@@ -118,7 +117,7 @@ backend/
 └───────┘ └───────┘
 
 异步任务: onlinechat-task
-  ├── MessageEventListener  (@Async + 事务提交后)
+  ├── MessageQueueConsumer  (Redis Stream → MySQL 批量入库)
   ├── SessionCleanTask      (@Scheduled 每5分钟)
   └── MessageArchiveTask    (@Scheduled 每天凌晨3点)
 ```
@@ -379,7 +378,7 @@ message ──< message_archive                (冷数据归档)
 地址: ws://localhost:9090/ws
 协议: JSON 文本帧
 编码: UTF-8
-心跳: 服务端 IdleStateHandler 60s 读空闲检测
+心跳: 客户端 120s 发送一次，服务端 IdleStateHandler 300s 读空闲检测
 ```
 
 ### ImPacket 消息格式
@@ -458,10 +457,9 @@ message ──< message_archive                (冷数据归档)
 ### seq 序列号
 
 会话级别的递增序列号（Redis INCR）：
-- Key: `im:seq:{conversationType}:{conversationId}`
+- Key: `im:seq:{type}:{conversationId}`
 - 每条消息分配唯一 seq
-- 客户端通过 `sinceSeq` 增量拉取新消息
-- 离线消息通过 `seq > lastReadSeq` 批量获取
+- 消息排序优先使用 `send_time`（实际发送时间），seq 仅作同毫秒内的副排序
 
 ### 离线消息
 
@@ -481,9 +479,11 @@ Redis TTL: 7 天
 ### 在线状态管理
 
 ```
-Redis:    im:online:{userId}  → serverNode  (TTL 30min, 心跳续期)
+Redis:    im:online:{userId}  → serverNode  (TTL 30min)
+          im:channel:{userId} → channelId
 MySQL:    user.online_status  → 0离线/1在线/2隐身/3忙碌
-SessionManager: 内存中维护 Channel ↔ User 映射（支持多端）
+SessionManager: ConcurrentHashMap 维护 Channel ↔ User 映射（支持多端）
+清理:     退出登录 / WS 断开 → 立即删除 Redis key + 更新 MySQL
 ```
 
 ### 多端同步
@@ -567,7 +567,7 @@ docker-compose -f scripts/docker-compose.yml up -d
 ### 多实例部署
 
 多实例时需注意：
-- 每个实例设置不同的 `im.snowflake.worker-id`
+- 雪花算法已精简为单实例版本，多实例需引入 worker-id 区分
 - Redis 用于跨节点 Channel 映射（`im:channel:{userId}`）
 - SessionManager 是内存级，跨节点消息路由走 Redis 查找目标节点
 

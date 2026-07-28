@@ -74,9 +74,9 @@ export const useChatStore = defineStore('chat', () => {
 
   async function loadMore() {
     if (messages.value.length === 0) return
-    const cursorSeq = messages.value[0].seq
+    const cursorTime = messages.value[0].sendTime || ''
     try {
-      const { data } = await chatApi.getHistory(activeId.value, activeType.value, cursorSeq, 30)
+      const { data } = await chatApi.getHistory(activeId.value, activeType.value, cursorTime, 30)
       if (data.code === 200 && data.data) {
         messages.value = [...data.data.reverse(), ...messages.value]
       }
@@ -112,7 +112,7 @@ export const useChatStore = defineStore('chat', () => {
 
     wsClient.on(CMD.PUSH_MSG, (p) => {
       const msg = p.body as Message
-      const targetId = msg.conversationType === 0 ? msg.fromUserId : msg.toId
+      const targetId = n(msg.conversationType === 0 ? msg.fromUserId : msg.toId)
       let idx = conversations.value.findIndex(
         (c: Conversation) => c.type === n(msg.conversationType) && c.targetId === targetId
       )
@@ -142,7 +142,7 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
       // 当前会话则追加到消息列表
-      if ((msg.conversationId === activeId.value || activeTargetId.value === targetId)
+      if ((n(msg.conversationId) === activeId.value || activeTargetId.value === targetId)
           && n(msg.conversationType) === activeType.value) {
         messages.value.push(msg)
         wsClient.send(CMD.READ_NOTIFY, { messageId: msg.id })
@@ -158,10 +158,10 @@ export const useChatStore = defineStore('chat', () => {
         }
         // 替换乐观消息（按 content+fromUserId 匹配）
         const tempIdx = messages.value.findIndex(m =>
-          (!m.id || m.status === 0) && m.fromUserId === auth.userId && m.content === msg.content
+          (!m.id || m.status === 0) && n(m.fromUserId) === auth.userId && m.content === msg.content
         )
         if (tempIdx >= 0) messages.value[tempIdx] = msg
-        else if (!messages.value.find(m => String(m.id) === String(msg.id))) messages.value.push(msg)
+        else if (!messages.value.find(m => m.id === msg.id)) messages.value.push(msg)
         loadConversations()
       }
     })
@@ -172,10 +172,10 @@ export const useChatStore = defineStore('chat', () => {
           activeId.value = Number(msg.conversationId) || Number(msg.id)
         }
         const tempIdx = messages.value.findIndex(m =>
-          (!m.id || m.status === 0) && m.fromUserId === auth.userId && m.content === msg.content
+          (!m.id || m.status === 0) && n(m.fromUserId) === auth.userId && m.content === msg.content
         )
         if (tempIdx >= 0) messages.value[tempIdx] = msg
-        else if (!messages.value.find(m => String(m.id) === String(msg.id))) messages.value.push(msg)
+        else if (!messages.value.find(m => m.id === msg.id)) messages.value.push(msg)
         loadConversations()
       }
     })
@@ -197,7 +197,7 @@ export const useChatStore = defineStore('chat', () => {
 
     // 乐观更新：立即显示"发送中"
     const tempMsg: Message = {
-      id: '',
+      id: 0,
       seq: 0,
       conversationType: activeType.value,
       conversationId: activeId.value || 0,
@@ -253,7 +253,7 @@ export const useChatStore = defineStore('chat', () => {
     await loadConversations()
   }
 
-  // WS 消息中 Long 字段是 String（Fastjson2），统一转 Number
+  // 统一转 number，兜底防御 WS/HTTP 序列化差异
   function n(v: any): number { return v == null ? 0 : Number(v) }
 
   function getPreview(msg: Message): string {
@@ -266,9 +266,17 @@ export const useChatStore = defineStore('chat', () => {
     return (msg.content || '').substring(0, 50)
   }
 
+  function reset() {
+    wsInited = false
+    wsClient.close()
+    conversations.value = []
+    messages.value = []
+    activeId.value = 0
+  }
+
   return {
     conversations, activeId, activeType, activeTargetId, activeName, messages, loading, activeConv,
     loadConversations, openConversation, loadMessages, loadMore, addMessage,
-    connectWs, sendWsMessage, setPinned, setMuted, deleteConv,
+    connectWs, sendWsMessage, setPinned, setMuted, deleteConv, reset,
   }
 })

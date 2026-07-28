@@ -12,6 +12,7 @@ import com.sylvie233.repository.mapper.ContactGroupMapper;
 import com.sylvie233.repository.mapper.ContactMapper;
 import com.sylvie233.repository.mapper.FriendRequestMapper;
 import com.sylvie233.repository.mapper.UserSettingMapper;
+import com.sylvie233.service.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ public class ContactService extends ServiceImpl<ContactMapper, Contact> {
     private final FriendRequestMapper friendRequestMapper;
     private final BlocklistMapper blocklistMapper;
     private final UserSettingMapper userSettingMapper;
+    private final NotificationService notificationService;
 
     // ==================== 好友分组 ====================
 
@@ -176,6 +178,10 @@ public class ContactService extends ServiceImpl<ContactMapper, Contact> {
         req.setStatus(0);
         friendRequestMapper.insert(req);
         log.info("发送好友申请: from={}, to={}", fromUserId, toUserId);
+
+        // 给接收方生成通知
+        notificationService.send(toUserId, 1,
+                "新的好友申请", "用户" + fromUserId + " 请求添加你为好友", req.getId());
         return req;
     }
 
@@ -205,6 +211,9 @@ public class ContactService extends ServiceImpl<ContactMapper, Contact> {
             String source = req.getRemark() != null ? req.getRemark() : "";
             addContact(req.getFromUserId(), req.getToUserId(), source);
             addContact(req.getToUserId(), req.getFromUserId(), source);
+            // 给申请发出方通知
+            notificationService.send(req.getFromUserId(), 1,
+                    "好友申请已通过", "用户" + handlerId + " 已同意你的好友申请", req.getId());
         }
         log.info("处理好友申请: requestId={}, agree={}", requestId, agree);
     }

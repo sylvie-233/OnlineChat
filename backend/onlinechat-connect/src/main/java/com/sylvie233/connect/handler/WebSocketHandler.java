@@ -5,6 +5,8 @@ import com.sylvie233.connect.protocol.ImPacket;
 import com.sylvie233.connect.session.ChannelSession;
 import com.sylvie233.connect.session.SessionManager;
 import com.sylvie233.connect.router.MessageRouter;
+import com.sylvie233.service.cache.RedisCacheService;
+import com.sylvie233.service.user.UserService;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -26,6 +28,8 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
 
     private final SessionManager sessionManager;
     private final MessageRouter messageRouter;
+    private final RedisCacheService redisCacheService;
+    private final UserService userService;
 
     private static final AttributeKey<ChannelSession> SESSION_KEY =
             AttributeKey.valueOf("session");
@@ -43,7 +47,13 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
         Channel channel = ctx.channel();
         ChannelSession session = getSession(channel);
         if (session != null) {
+            Long userId = session.getUserId();
             sessionManager.unbind(session.channelId());
+            // 如果用户没有其他活跃 channel，清理 Redis 在线状态
+            if (userId != null && sessionManager.getUserChannels(userId).isEmpty()) {
+                redisCacheService.setOffline(userId);
+                userService.offline(userId);
+            }
         }
         log.info("WebSocket 连接断开: {}", session != null ? session.channelId() : "unknown");
         ctx.fireChannelInactive();
@@ -55,22 +65,39 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
         ChannelSession session = getSession(channel);
 
         if (frame instanceof PingWebSocketFrame) {
+            log.trace("收到 Ping: {}", session.channelId());
             channel.writeAndFlush(new PongWebSocketFrame(frame.content().retain()));
             return;
         }
 
         if (frame instanceof CloseWebSocketFrame) {
+            int statusCode = ((CloseWebSocketFrame) frame).statusCode();
+            String reason = ((CloseWebSocketFrame) frame).reasonText();
+            log.info("收到关闭帧: channel={}, userId={}, statusCode={}, reason={}",
+                    session.channelId(), session.getUserId(), statusCode, reason);
             channel.close();
+            return;
+        }
+
+        if (frame instanceof BinaryWebSocketFrame) {
+            log.warn("收到二进制帧(暂不支持): {}, size={}B", session.channelId(),
+                    frame.content().readableBytes());
             return;
         }
 
         if (frame instanceof TextWebSocketFrame) {
             String text = ((TextWebSocketFrame) frame).text();
+            log.debug("收到文本消息: {}, userId={}, size={}B, payload={}",
+                    session.channelId(), session.getUserId(), text.length(),
+                    text.length() > 500 ? text.substring(0, 500) + "..." : text);
             try {
                 ImPacket packet = JSON.parseObject(text, ImPacket.class);
+                log.debug("消息解析成功: {}, cmd={}, seq={}", session.channelId(),
+                        ImPacket.cmdName(packet.getCmd()), packet.getSeq());
                 handlePacket(channel, session, packet);
             } catch (Exception e) {
-                log.error("消息解析失败: {}", text, e);
+                log.error("消息解析失败: channel={}, userId={}, payload={}",
+                        session.channelId(), session.getUserId(), text, e);
                 channel.writeAndFlush(new TextWebSocketFrame(
                         JSON.toJSONString(ImPacket.error(0, "消息格式错误: " + e.getMessage()))));
             }
@@ -80,13 +107,23 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
     private void handlePacket(Channel channel, ChannelSession session, ImPacket packet) {
         session.refreshActive();
 
-        switch (packet.getCmd()) {
+        int cmd = packet.getCmd();
+        long seq = packet.getSeq();
+        Long userId = session.getUserId();
+        String channelId = session.channelId();
+
+        log.debug("处理消息包: channel={}, userId={}, cmd={}({}), seq={}",
+                channelId, userId, ImPacket.cmdName(cmd), cmd, seq);
+
+        switch (cmd) {
             case ImPacket.CMD_HEARTBEAT -> {
+                log.trace("心跳回复: channel={}, userId={}", channelId, userId);
                 channel.writeAndFlush(new TextWebSocketFrame(
                         JSON.toJSONString(ImPacket.heartbeatAck())));
             }
 
             case ImPacket.CMD_AUTH -> {
+                log.debug("处理认证请求: channel={}, userId={}, seq={}", channelId, userId, seq);
                 messageRouter.handleAuth(channel, session, packet);
             }
 
@@ -94,38 +131,55 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
                  ImPacket.CMD_GROUP_MSG,
                  ImPacket.CMD_FORWARD_MSG -> {
                 if (!session.isAuthenticated()) {
+                    log.warn("未认证用户尝试发送消息: channel={}, cmd={}({}), seq={}",
+                            channelId, ImPacket.cmdName(cmd), cmd, seq);
                     channel.writeAndFlush(new TextWebSocketFrame(
-                            JSON.toJSONString(ImPacket.error(packet.getSeq(), "请先登录"))));
+                            JSON.toJSONString(ImPacket.error(seq, "请先登录"))));
                     return;
                 }
+                log.debug("路由消息: channel={}, userId={}, cmd={}({}), seq={}",
+                        channelId, userId, ImPacket.cmdName(cmd), cmd, seq);
                 messageRouter.route(channel, session, packet);
             }
 
             case ImPacket.CMD_READ_NOTIFY -> {
-                if (session.isAuthenticated()) {
-                    messageRouter.handleReadNotify(session, packet);
+                if (!session.isAuthenticated()) {
+                    log.warn("未认证用户尝试已读通知: channel={}", channelId);
+                    return;
                 }
+                log.debug("已读通知: channel={}, userId={}, seq={}", channelId, userId, seq);
+                messageRouter.handleReadNotify(session, packet);
             }
 
             case ImPacket.CMD_RECALL_NOTIFY -> {
-                if (session.isAuthenticated()) {
-                    messageRouter.handleRecallNotify(session, packet);
+                if (!session.isAuthenticated()) {
+                    log.warn("未认证用户尝试撤回消息: channel={}", channelId);
+                    return;
                 }
+                log.debug("撤回通知: channel={}, userId={}, seq={}", channelId, userId, seq);
+                messageRouter.handleRecallNotify(session, packet);
             }
 
             case ImPacket.CMD_ONLINE_NOTIFY -> {
-                if (session.isAuthenticated()) {
-                    messageRouter.handleOnlineStatusNotify(session, packet);
+                if (!session.isAuthenticated()) {
+                    log.warn("未认证用户尝试在线状态通知: channel={}", channelId);
+                    return;
                 }
+                log.debug("在线状态通知: channel={}, userId={}, seq={}", channelId, userId, seq);
+                messageRouter.handleOnlineStatusNotify(session, packet);
             }
 
             case ImPacket.CMD_TYPING -> {
-                if (session.isAuthenticated()) {
-                    messageRouter.handleTyping(session, packet);
+                if (!session.isAuthenticated()) {
+                    log.warn("未认证用户尝试正在输入通知: channel={}", channelId);
+                    return;
                 }
+                log.trace("正在输入: channel={}, userId={}, seq={}", channelId, userId, seq);
+                messageRouter.handleTyping(session, packet);
             }
 
-            default -> log.warn("未知命令: cmd={}", packet.getCmd());
+            default -> log.warn("未知命令: channel={}, userId={}, cmd={}({}), seq={}",
+                    channelId, userId, ImPacket.cmdName(cmd), cmd, seq);
         }
     }
 

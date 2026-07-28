@@ -16,7 +16,7 @@ import java.util.Map;
  * 消息队列生产者 — 将消息发布到 Redis Stream
  * <p>
  * 由 MessageService 内部调用，透明切换直写/队列模式：
- * 1. 预生成 Snowflake 消息 ID（worker-id / datacenter-id 从配置读取）
+ * 1. 预生成 Snowflake 消息 ID
  * 2. 发布到 Redis Stream "im:message:stream"
  * 3. MessageQueueConsumer 异步批量拉取 → MySQL
  * </p>
@@ -34,11 +34,9 @@ public class MessageQueueProducer {
     @Value("${im.queue.enabled:true}")
     private boolean queueEnabled;
 
-    public MessageQueueProducer(RedisTemplate<String, Object> redisTemplate,
-                                 @Value("${im.snowflake.worker-id:1}") long workerId,
-                                 @Value("${im.snowflake.datacenter-id:1}") long datacenterId) {
+    public MessageQueueProducer(RedisTemplate<String, Object> redisTemplate) {
         this.redisTemplate = redisTemplate;
-        this.idWorker = new SnowflakeIdWorker(workerId, datacenterId);
+        this.idWorker = new SnowflakeIdWorker();
     }
 
     /**

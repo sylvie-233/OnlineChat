@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "OnlineChatApplication",
+            "request": "launch",
+            "mainClass": "com.sylvie233.server.OnlineChatApplication",
+            "projectName": "onlinechat-server",
+            "vmArgs": "-Dfile.encoding=UTF-8"
+        },
+        {
+            "type": "java",
+            "name": "OnlineChat (Current File)",
+            "request": "launch",
+            "mainClass": "${file}",
+            "vmArgs": "-Dfile.encoding=UTF-8"
+        }
+    ]
+}

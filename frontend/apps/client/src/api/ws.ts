@@ -17,6 +17,7 @@ class WsClient {
   private reconnectTimer = 0
   private heartbeatTimer = 0
   private url = ''
+  private _closed = false
 
   get connected() {
     return this.ws?.readyState === WebSocket.OPEN
@@ -24,10 +25,12 @@ class WsClient {
 
   connect(url: string) {
     this.url = url
+    this._closed = false
     this.ws = new WebSocket(url)
 
     this.ws.onopen = () => {
       console.log('[WS] 已连接')
+      this.send(0) // 立即发送首次心跳，触发认证流程
       this.startHeartbeat()
     }
 
@@ -44,7 +47,7 @@ class WsClient {
     this.ws.onclose = () => {
       console.log('[WS] 断开')
       this.stopHeartbeat()
-      this.reconnect()
+      if (!this._closed) this.reconnect()
     }
 
     this.ws.onerror = (e) => {
@@ -75,6 +78,7 @@ class WsClient {
   }
 
   close() {
+    this._closed = true
     this.stopHeartbeat()
     clearTimeout(this.reconnectTimer)
     this.ws?.close()
@@ -84,7 +88,7 @@ class WsClient {
   private startHeartbeat() {
     this.heartbeatTimer = window.setInterval(() => {
       this.send(0) // CMD_HEARTBEAT
-    }, 30_000)
+    }, 120_000)
   }
 
   private stopHeartbeat() {
@@ -92,6 +96,7 @@ class WsClient {
   }
 
   private reconnect() {
+    if (this._closed) return
     clearTimeout(this.reconnectTimer)
     this.reconnectTimer = window.setTimeout(() => {
       console.log('[WS] 重连...')

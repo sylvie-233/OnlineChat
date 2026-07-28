@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sylvie233.repository.mapper.MessageMapper">
+
+    <!-- 查询会话最新消息 -->
+    <select id="selectLatestByConversation" resultType="com.sylvie233.repository.entity.Message">
+        SELECT * FROM message
+        WHERE is_deleted = 0
+          <choose>
+            <when test="type == 0">
+              AND conversation_type = 0
+              AND ((from_user_id = #{userId} AND to_id = #{targetId})
+                   OR (from_user_id = #{targetId} AND to_id = #{userId}))
+            </when>
+            <otherwise>
+              AND conversation_type = #{type}
+              AND conversation_id = #{conversationId}
+            </otherwise>
+          </choose>
+        ORDER BY send_time DESC, seq DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 历史翻页 -->
+    <select id="selectHistoryByConversation" resultType="com.sylvie233.repository.entity.Message">
+        SELECT * FROM message
+        WHERE send_time &lt; #{cursorTime}
+          AND is_deleted = 0
+          <choose>
+            <when test="type == 0">
+              AND conversation_type = 0
+              AND ((from_user_id = #{userId} AND to_id = #{targetId})
+                   OR (from_user_id = #{targetId} AND to_id = #{userId}))
+            </when>
+            <otherwise>
+              AND conversation_type = #{type}
+              AND conversation_id = #{conversationId}
+            </otherwise>
+          </choose>
+        ORDER BY send_time DESC, seq DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 增量同步 -->
+    <select id="selectSyncByConversation" resultType="com.sylvie233.repository.entity.Message">
+        SELECT * FROM message
+        WHERE send_time &gt; #{cursorTime}
+          AND is_deleted = 0
+          <choose>
+            <when test="type == 0">
+              AND conversation_type = 0
+              AND ((from_user_id = #{userId} AND to_id = #{targetId})
+                   OR (from_user_id = #{targetId} AND to_id = #{userId}))
+            </when>
+            <otherwise>
+              AND conversation_type = #{type}
+              AND conversation_id = #{conversationId}
+            </otherwise>
+          </choose>
+        ORDER BY seq ASC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

@@ -25,6 +25,12 @@ public class Conversation {
     private Integer isHidden;
     private String draft;
 
+    /** 非数据库字段 — 查询时从 user 表填充 */
+    @TableField(exist = false)
+    private String targetName;
+    @TableField(exist = false)
+    private String targetAvatar;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

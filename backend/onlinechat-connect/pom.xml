@@ -29,12 +29,6 @@
             <artifactId>netty-all</artifactId>
         </dependency>
 
-        <!-- Jackson（消息编解码） -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-        </dependency>
-
         <!-- Sa-Token（WS 认证时从 Token 反查 userId） -->
         <dependency>
             <groupId>cn.dev33</groupId>

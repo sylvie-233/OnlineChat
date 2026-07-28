@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { useNotifStore } from '@/stores/notification'
 import { useRouter, useRoute } from 'vue-router'
+import { message } from 'ant-design-vue'
 import {
   MessageOutlined, ContactsOutlined, TeamOutlined,
   BellOutlined, SettingOutlined, LogoutOutlined,
@@ -36,6 +37,8 @@ function goSettings() { router.push('/settings') }
 
 function handleLogout() {
   auth.logout()
+  chat.reset()
+  message.success('已退出登录')
   router.push('/login')
 }
 </script>

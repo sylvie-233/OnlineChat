@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api from '@/api'
+import { wsClient } from '@/api/ws'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || '')
@@ -23,12 +24,16 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  function logout() {
+  async function logout() {
+    // 先清客户端状态，保证路由守卫立即生效
     token.value = ''
     userId.value = 0
     nickname.value = ''
     avatar.value = ''
     localStorage.clear()
+    wsClient.close()
+    // 再通知后端（异步，不阻塞跳转）
+    try { await api.post('/api/auth/logout') } catch { /* ignore */ }
   }
 
   return { token, userId, nickname, avatar, login, logout }

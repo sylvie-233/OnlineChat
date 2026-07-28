@@ -73,6 +73,30 @@ public class ImPacket {
 
     // ========== 工厂方法 ==========
 
+    /** 返回命令码对应的可读名称（日志用） */
+    public static String cmdName(int cmd) {
+        return switch (cmd) {
+            case CMD_HEARTBEAT     -> "HEARTBEAT";
+            case CMD_HEARTBEAT_ACK -> "HEARTBEAT_ACK";
+            case CMD_AUTH          -> "AUTH";
+            case CMD_AUTH_ACK      -> "AUTH_ACK";
+            case CMD_PRIVATE_MSG   -> "PRIVATE_MSG";
+            case CMD_PRIVATE_MSG_ACK -> "PRIVATE_MSG_ACK";
+            case CMD_GROUP_MSG     -> "GROUP_MSG";
+            case CMD_GROUP_MSG_ACK -> "GROUP_MSG_ACK";
+            case CMD_READ_NOTIFY   -> "READ_NOTIFY";
+            case CMD_RECALL_NOTIFY -> "RECALL_NOTIFY";
+            case CMD_ONLINE_NOTIFY -> "ONLINE_NOTIFY";
+            case CMD_PUSH_MSG      -> "PUSH_MSG";
+            case CMD_PUSH_NOTIFY   -> "PUSH_NOTIFY";
+            case CMD_TYPING        -> "TYPING";
+            case CMD_TYPING_ACK    -> "TYPING_ACK";
+            case CMD_FORWARD_MSG   -> "FORWARD_MSG";
+            case CMD_ERROR         -> "ERROR";
+            default                -> "UNKNOWN(" + cmd + ")";
+        };
+    }
+
     public static ImPacket heartbeat() {
         return new ImPacket(CMD_HEARTBEAT, 0, System.currentTimeMillis(), null);
     }
