@@ -154,7 +154,9 @@ async function uploadFile() {
     const form = new FormData(); form.append('file', file); form.append('fileType', 'file')
     const { data } = await http.post('/api/file/upload', form)
     if (data.code === 200) {
-      const body: any = { msgType: 4, content: `[文件] ${file.name}\n${data.data.fileUrl}`, clientMsgId: `${auth.userId}_${Date.now()}` }
+      const body: any = { msgType: 4, content: data.data.fileUrl,
+        extra: JSON.stringify({ fileName: file.name, fileSize: file.size }),
+        clientMsgId: `${auth.userId}_${Date.now()}` }
       const toId = chat.activeTargetId || 0
       if (chat.activeType === 1) body.groupId = toId; else body.toUserId = toId
       wsClient.send(chat.activeType === 1 ? CMD.GROUP_MSG : CMD.PRIVATE_MSG, body)

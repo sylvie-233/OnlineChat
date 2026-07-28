@@ -96,9 +96,13 @@ public class AuthController {
     @PostMapping("/refresh")
     public Result<Map<String, Object>> refreshToken() {
         Long userId = StpUtil.getLoginIdAsLong();
+        String oldToken = StpUtil.getTokenValue();
         StpUtil.logout(userId);
         StpUtil.login(userId);
         String newToken = StpUtil.getTokenValue();
+
+        // 更新 user_session 表中的 token
+        sessionService.updateToken(userId, oldToken, newToken);
 
         Map<String, Object> result = new HashMap<>();
         result.put("token", newToken);

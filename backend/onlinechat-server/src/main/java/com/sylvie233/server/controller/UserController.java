@@ -8,6 +8,7 @@ import com.sylvie233.repository.entity.UserSetting;
 import com.sylvie233.service.user.UserService;
 import com.sylvie233.service.user.UserSettingService;
 import com.sylvie233.service.user.SessionService;
+import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -37,13 +38,13 @@ public class UserController {
         return Result.ok(user);
     }
 
-    @Operation(summary = "搜索用户")
+    @Operation(summary = "搜索用户（模糊匹配 username/nickname）")
     @GetMapping("/search")
-    public Result<User> searchByUsername(@RequestParam String username) {
-        User user = userService.getByUsername(username);
-        if (user == null) return Result.notFound();
-        user.setPassword(null);
-        return Result.ok(user);
+    public Result<List<User>> searchUsers(@RequestParam(defaultValue = "") String keyword) {
+        if (keyword.isBlank()) return Result.ok(List.of());
+        List<User> users = userService.searchUsers(keyword);
+        users.forEach(u -> u.setPassword(null));
+        return Result.ok(users);
     }
 
     @Operation(summary = "更新个人资料")

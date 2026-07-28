@@ -17,7 +17,7 @@ public class AuthInterceptor implements HandlerInterceptor {
                              Object handler) {
         // 白名单路径放行
         String path = request.getRequestURI();
-        if (path.startsWith("/api/auth/") || path.startsWith("/doc.html")
+        if (path.startsWith("/api/auth/login") || path.startsWith("/api/auth/register") || path.startsWith("/doc.html")
                 || path.startsWith("/v3/api-docs") || path.startsWith("/webjars")) {
             return true;
         }

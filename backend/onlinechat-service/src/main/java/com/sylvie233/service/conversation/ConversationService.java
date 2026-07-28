@@ -67,10 +67,10 @@ public class ConversationService extends ServiceImpl<ConversationMapper, Convers
     }
 
     /**
-     * 原子更新 — 更新最后消息 + 未读计数+1（SELECT → Java +1 → UPDATE 的替代）
+     * 原子更新 — 更新最后消息 + 可选的未读计数+1
      */
     @Transactional
-    public void updateLastMessage(Conversation conv) {
+    public void updateLastMessage(Conversation conv, boolean incrementUnread) {
         Conversation exist = lambdaQuery()
                 .eq(Conversation::getUserId, conv.getUserId())
                 .eq(Conversation::getType, conv.getType())
@@ -78,15 +78,16 @@ public class ConversationService extends ServiceImpl<ConversationMapper, Convers
                 .one();
 
         if (exist != null) {
-            // 原子更新：unreadCount+1 + 更新 lastMessage
-            lambdaUpdate()
+            var updater = lambdaUpdate()
                     .eq(Conversation::getId, exist.getId())
                     .set(Conversation::getLastMessageId, conv.getLastMessageId())
-                    .set(Conversation::getLastMessageSeq, conv.getLastMessageSeq())
-                    .setSql("unread_count = unread_count + 1")
-                    .update();
+                    .set(Conversation::getLastMessageSeq, conv.getLastMessageSeq());
+            if (incrementUnread) {
+                updater.setSql("unread_count = unread_count + 1");
+            }
+            updater.update();
         } else {
-            conv.setUnreadCount(1);
+            conv.setUnreadCount(incrementUnread ? 1 : 0);
             save(conv);
         }
     }

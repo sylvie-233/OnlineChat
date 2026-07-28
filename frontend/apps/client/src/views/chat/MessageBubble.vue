@@ -4,8 +4,25 @@ import type { Message } from '@/types'
 import { chatApi } from '@/api/chat'
 import { RollbackOutlined, CopyOutlined, EyeOutlined } from '@ant-design/icons-vue'
 
+import { useChatStore } from '@/stores/chat'
+
 const props = defineProps<{ message: Message; isMine: boolean }>()
 const emit = defineEmits<{ recall: []; reply: [] }>()
+
+const chat = useChatStore()
+
+const senderName = computed(() => {
+  if (props.isMine) return ''
+  // 单聊：对方就是当前会话的人
+  if (props.message.conversationType === 0) return chat.activeName
+  // 群聊：从 extra 中取 fromNickname
+  if (props.message.fromNickname) return props.message.fromNickname
+  try {
+    const ex = JSON.parse(props.message.extra || '{}')
+    return ex.fromNickname || `用户${props.message.fromUserId}`
+  } catch { return `用户${props.message.fromUserId}` }
+})
+
 const showMenu = ref(false)
 const showReactions = ref(false)
 const previewVisible = ref(false)
@@ -21,7 +38,7 @@ const msgRender = computed(() => {
   const t = props.message.msgType
   const c = props.message.content || ''
   if (t === 1) return { type: 'image', src: c }
-  if (t === 4) return { type: 'file', name: extractFileName(c), url: c }
+  if (t === 4) return { type: 'file', name: parseExtra('fileName') || '未知文件', url: c }
   if (t === 5) return { type: 'location', text: '📍 位置信息' }
   if (t === 6) return { type: 'link', text: c }
   if (t === 3) return { type: 'video', text: '🎬 视频消息' }
@@ -29,9 +46,11 @@ const msgRender = computed(() => {
   return { type: 'text', text: c }
 })
 
-function extractFileName(content: string) {
-  const match = content.match(/\[文件\] (.+)/)
-  return match ? match[1].split('\n')[0] : '未知文件'
+function parseExtra(key: string): string | null {
+  try {
+    const ex = JSON.parse(props.message.extra || '{}')
+    return ex[key] || null
+  } catch { return null }
 }
 
 function openImagePreview(src: string) {
@@ -66,13 +85,13 @@ async function loadReactions() {
   <div :class="['msg-row', isMine ? 'msg-mine' : 'msg-other']">
     <!-- 发送者头像（非自己的消息） -->
     <a-avatar v-if="!isMine" :size="32" class="msg-avatar">
-      {{ (message.fromNickname || '?').charAt(0) }}
+      {{ (senderName || '?').charAt(0) }}
     </a-avatar>
 
     <div class="msg-body">
       <!-- 发送者昵称 -->
-      <div v-if="!isMine && message.fromNickname" class="msg-sender">
-        {{ message.fromNickname }}
+      <div v-if="!isMine" class="msg-sender">
+        {{ senderName }}
       </div>
 
       <!-- 气泡 -->

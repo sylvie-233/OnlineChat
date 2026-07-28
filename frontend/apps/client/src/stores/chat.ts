@@ -52,6 +52,11 @@ export const useChatStore = defineStore('chat', () => {
     activeTargetId.value = conv.targetId
     activeName.value = conv.targetName || `用户${conv.targetId}`
     messages.value = []
+    // 清除未读数
+    if (conv.id && conv.unreadCount > 0) {
+      chatApi.clearUnread(conv.id)
+      conv.unreadCount = 0
+    }
     loadMessages()
   }
 
@@ -66,6 +71,7 @@ export const useChatStore = defineStore('chat', () => {
       if (reqId !== loadReqId) return // 竞态: 忽略过期响应
       if (data.code === 200) {
         messages.value = (data.data || []).reverse()
+        injectNicknames(messages.value)
       }
     } finally {
       if (reqId === loadReqId) loading.value = false
@@ -78,13 +84,30 @@ export const useChatStore = defineStore('chat', () => {
     try {
       const { data } = await chatApi.getHistory(activeId.value, activeType.value, cursorTime, 30)
       if (data.code === 200 && data.data) {
+        injectNicknames(data.data)
         messages.value = [...data.data.reverse(), ...messages.value]
       }
     } catch (e) { /* ignore */ }
   }
 
   function addMessage(msg: Message) {
+    injectNickname(msg)
     messages.value.push(msg)
+  }
+
+  /** 从 extra JSON 中提取 fromNickname */
+  function injectNickname(msg: Message) {
+    if (!msg.fromNickname && msg.extra) {
+      try {
+        const ex = JSON.parse(msg.extra)
+        if (ex.fromNickname) msg.fromNickname = ex.fromNickname
+      } catch { /* ignore */ }
+    }
+  }
+
+  /** 给消息列表注入昵称 */
+  function injectNicknames(list: Message[]) {
+    for (const m of list) injectNickname(m)
   }
 
   // ==================== WebSocket ====================
@@ -112,6 +135,7 @@ export const useChatStore = defineStore('chat', () => {
 
     wsClient.on(CMD.PUSH_MSG, (p) => {
       const msg = p.body as Message
+      injectNickname(msg)
       const targetId = n(msg.conversationType === 0 ? msg.fromUserId : msg.toId)
       let idx = conversations.value.findIndex(
         (c: Conversation) => c.type === n(msg.conversationType) && c.targetId === targetId
@@ -152,6 +176,7 @@ export const useChatStore = defineStore('chat', () => {
     // ACK：替换乐观消息为真实消息 + 更新 activeId
     wsClient.on(CMD.PRIVATE_MSG_ACK, (p) => {
       const msg = p.body as Message
+      injectNickname(msg)
       if (msg) {
         if (!activeId.value && (msg.conversationId || msg.id)) {
           activeId.value = Number(msg.conversationId) || Number(msg.id)
@@ -167,6 +192,7 @@ export const useChatStore = defineStore('chat', () => {
     })
     wsClient.on(CMD.GROUP_MSG_ACK, (p) => {
       const msg = p.body as Message
+      injectNickname(msg)
       if (msg) {
         if (!activeId.value && (msg.conversationId || msg.id)) {
           activeId.value = Number(msg.conversationId) || Number(msg.id)

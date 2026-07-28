@@ -8,6 +8,7 @@ import com.sylvie233.repository.entity.MessageRecall;
 import com.sylvie233.repository.mapper.MessageMapper;
 import com.sylvie233.repository.mapper.MessageRecallMapper;
 import com.sylvie233.service.cache.RedisCacheService;
+import com.sylvie233.service.conversation.ConversationService;
 import com.sylvie233.service.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
     private final RedisCacheService redisCacheService;
     private final MessageQueueProducer queueProducer;
     private final NotificationService notificationService;
+    private final ConversationService conversationService;
     private final com.sylvie233.repository.mapper.ConversationMapper conversationMapper;
 
     private static final Pattern MENTION_PATTERN = Pattern.compile("@\\{(\\d+)\\}");
@@ -87,7 +89,10 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
         // 4. 解析 @提及
         parseAndCreateMentions(msg);
 
-        // 5. 单聊时给接收方生成通知
+        // 5. 更新双方会话（最后消息 + 未读计数）
+        updateConversation(msg);
+
+        // 6. 单聊时给接收方生成通知
         if (msg.getConversationType() != null && msg.getConversationType() == 0) {
             notificationService.send(msg.getToId(), 4,
                     "新消息", truncateContent(msg.getContent()), msg.getId());
@@ -311,6 +316,35 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
         conversationMapper.insert(conv);
         log.info("自动创建会话: convId={}, userId={}, targetId={}", conv.getId(), userId, targetId);
         return conv.getId();
+    }
+
+    /** 更新双方会话的最后消息和未读数 */
+    private void updateConversation(Message msg) {
+        if (msg.getConversationType() == null) return;
+        int type = msg.getConversationType();
+        Long fromUserId = msg.getFromUserId();
+        Long toId = msg.getToId();
+
+        if (type == 0) {
+            // 单聊：收方未读+1，发方仅更新最后消息不加未读
+            conversationService.updateLastMessage(buildConv(toId, 0, fromUserId, msg), true);
+            conversationService.updateLastMessage(buildConv(fromUserId, 0, toId, msg), false);
+        } else {
+            // 群聊：更新所有群成员的会话（除发送者）
+            // TODO
+        }
+    }
+
+    private com.sylvie233.repository.entity.Conversation buildConv(Long userId, int type,
+                                                                     Long targetId, Message msg) {
+        com.sylvie233.repository.entity.Conversation conv =
+                new com.sylvie233.repository.entity.Conversation();
+        conv.setUserId(userId);
+        conv.setType(type);
+        conv.setTargetId(targetId);
+        conv.setLastMessageId(msg.getId());
+        conv.setLastMessageSeq(msg.getSeq());
+        return conv;
     }
 
     private String truncateContent(String content) {

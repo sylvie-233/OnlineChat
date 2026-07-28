@@ -16,8 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UserSettingService extends ServiceImpl<UserSettingMapper, UserSetting> {
 
-    private final UserSettingMapper userSettingMapper;
-
     /**
      * 获取或初始化用户设置
      */
@@ -30,8 +28,8 @@ public class UserSettingService extends ServiceImpl<UserSettingMapper, UserSetti
             setting.setSoundEnabled(1);
             setting.setVibrateEnabled(1);
             setting.setShowDetailEnabled(1);
-            setting.setFriendVerifyType(0);
-            setting.setGroupInviteVerify(0);
+            setting.setFriendVerifyType(1);
+            setting.setGroupInviteVerify(1);
             setting.setTheme("light");
             setting.setLanguage("zh-CN");
             setting.setFontSize("medium");

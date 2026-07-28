@@ -5,8 +5,8 @@ export const userApi = {
   getById(id: number) {
     return http.get<{ code: number; data: UserInfo }>(`/api/user/${id}`)
   },
-  search(username: string) {
-    return http.get<{ code: number; data: UserInfo }>('/api/user/search', { params: { username } })
+  search(keyword: string) {
+    return http.get<{ code: number; data: UserInfo[] }>('/api/user/search', { params: { keyword } })
   },
   updateProfile(data: Partial<UserInfo>) {
     return http.put('/api/user/profile', data)

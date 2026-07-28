@@ -6,6 +6,7 @@ import com.sylvie233.common.exception.BizException;
 import com.sylvie233.repository.entity.User;
 import com.sylvie233.repository.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,8 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UserService extends ServiceImpl<UserMapper, User> {
 
-    private final UserMapper userMapper;
-
     /**
      * 根据用户名精确查询
      */
@@ -27,6 +26,18 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         User user = lambdaQuery().eq(User::getUsername, username).one();
         if (user != null) log.debug("查询用户: username={}", username);
         return user;
+    }
+
+    /**
+     * 模糊搜索用户（匹配 username 或 nickname）
+     */
+    public List<User> searchUsers(String keyword) {
+        return lambdaQuery()
+                .like(User::getUsername, keyword)
+                .or()
+                .like(User::getNickname, keyword)
+                .last("LIMIT 20")
+                .list();
     }
 
     /**

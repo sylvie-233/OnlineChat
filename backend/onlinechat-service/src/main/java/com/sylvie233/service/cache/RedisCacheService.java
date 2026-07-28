@@ -21,35 +21,41 @@ public class RedisCacheService {
     private static final String ONLINE_KEY_PREFIX = "im:online:";
     private static final String USER_CHANNEL_KEY = "im:channel:";
 
+    // 设置在线
     public void setOnline(Long userId, String serverNode) {
         redisTemplate.opsForValue().set(ONLINE_KEY_PREFIX + userId, serverNode, 30, TimeUnit.MINUTES);
     }
 
+    // 设置下线
     public void setOffline(Long userId) {
         redisTemplate.delete(ONLINE_KEY_PREFIX + userId);
         redisTemplate.delete(USER_CHANNEL_KEY + userId);
     }
 
+    // 判断是否在线
     public boolean isOnline(Long userId) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(ONLINE_KEY_PREFIX + userId));
     }
 
+    // 获取用户所在节点
     public String getServerNode(Long userId) {
         Object val = redisTemplate.opsForValue().get(ONLINE_KEY_PREFIX + userId);
         return val != null ? val.toString() : null;
     }
 
+    // 刷新在线
     public void refreshOnline(Long userId) {
         redisTemplate.expire(ONLINE_KEY_PREFIX + userId, 30, TimeUnit.MINUTES);
         redisTemplate.expire(USER_CHANNEL_KEY + userId, 30, TimeUnit.MINUTES);
     }
 
     // ==================== Channel 映射 ====================
-
+    // 绑定用户channel
     public void bindChannel(Long userId, String channelId) {
         redisTemplate.opsForValue().set(USER_CHANNEL_KEY + userId, channelId, 30, TimeUnit.MINUTES);
     }
 
+    // 获取用户channel
     public String getChannelId(Long userId) {
         Object val = redisTemplate.opsForValue().get(USER_CHANNEL_KEY + userId);
         return val != null ? val.toString() : null;

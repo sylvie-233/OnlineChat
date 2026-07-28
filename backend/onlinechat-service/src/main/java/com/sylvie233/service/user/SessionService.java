@@ -19,8 +19,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SessionService extends ServiceImpl<UserSessionMapper, UserSession> {
 
-    private final UserSessionMapper userSessionMapper;
-
     /**
      * 记录登录会话
      */
@@ -65,7 +63,7 @@ public class SessionService extends ServiceImpl<UserSessionMapper, UserSession> 
     }
 
     /**
-     * 强制登出指定会话
+     * 强制登出指定会话（更新状态为0）
      */
     @Transactional
     public void kickSession(Long sessionId, Long userId) {
@@ -78,7 +76,7 @@ public class SessionService extends ServiceImpl<UserSessionMapper, UserSession> 
     }
 
     /**
-     * 登出用户所有设备
+     * 登出用户所有设备（更新状态为0）
      */
     @Transactional
     public void kickAllSessions(Long userId) {
@@ -97,6 +95,19 @@ public class SessionService extends ServiceImpl<UserSessionMapper, UserSession> 
         lambdaUpdate()
                 .eq(UserSession::getUserId, userId)
                 .eq(UserSession::getToken, token)
+                .set(UserSession::getLastActiveTime, LocalDateTime.now())
+                .update();
+    }
+
+    /**
+     * 刷新 Token 时更新 user_session 中的 token
+     */
+    @Transactional
+    public void updateToken(Long userId, String oldToken, String newToken) {
+        lambdaUpdate()
+                .eq(UserSession::getUserId, userId)
+                .eq(UserSession::getToken, oldToken)
+                .set(UserSession::getToken, newToken)
                 .set(UserSession::getLastActiveTime, LocalDateTime.now())
                 .update();
     }
