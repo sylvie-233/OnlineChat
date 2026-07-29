@@ -1,5 +1,6 @@
 package com.sylvie233.service.group;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.sylvie233.common.exception.BizException;
 import com.sylvie233.repository.entity.Conversation;
@@ -40,7 +41,7 @@ public class GroupRequestService extends ServiceImpl<GroupRequestMapper, GroupRe
     public GroupRequest applyJoin(Long groupId, Long userId, String verifyMessage) {
         // 检查是否已在群内
         GroupMember exist = groupMemberMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GroupMember>()
+                new LambdaQueryWrapper<GroupMember>()
                         .eq(GroupMember::getGroupId, groupId)
                         .eq(GroupMember::getUserId, userId));
         if (exist != null) {
@@ -73,7 +74,7 @@ public class GroupRequestService extends ServiceImpl<GroupRequestMapper, GroupRe
     @Transactional
     public GroupRequest inviteUser(Long groupId, Long inviterId, Long inviteeId, String verifyMessage) {
         GroupMember exist = groupMemberMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GroupMember>()
+                new LambdaQueryWrapper<GroupMember>()
                         .eq(GroupMember::getGroupId, groupId)
                         .eq(GroupMember::getUserId, inviteeId));
         if (exist != null) throw BizException.of("该用户已在群内");
@@ -148,11 +149,12 @@ public class GroupRequestService extends ServiceImpl<GroupRequestMapper, GroupRe
     }
 
     /**
-     * 获取群申请列表
+     * 获取群申请/邀请列表
      */
-    public List<GroupRequest> getRequests(Long groupId) {
+    public List<GroupRequest> getRequests(Long groupId, Integer type) {
         return lambdaQuery()
                 .eq(GroupRequest::getGroupId, groupId)
+                .eq(GroupRequest::getType, type)
                 .eq(GroupRequest::getStatus, 0)
                 .orderByDesc(GroupRequest::getCreateTime)
                 .list();

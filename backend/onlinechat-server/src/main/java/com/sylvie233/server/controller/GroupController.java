@@ -7,6 +7,8 @@ import com.sylvie233.repository.entity.*;
 import com.sylvie233.service.group.GroupService;
 import com.sylvie233.service.group.GroupAnnouncementService;
 import com.sylvie233.service.group.GroupRequestService;
+import com.sylvie233.service.message.MessageReadService;
+import com.sylvie233.service.message.MessageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -27,8 +29,8 @@ public class GroupController {
     private final GroupService groupService;
     private final GroupAnnouncementService announcementService;
     private final GroupRequestService groupRequestService;
-    private final com.sylvie233.service.message.MessageService messageService;
-    private final com.sylvie233.service.message.MessageReadService messageReadService;
+    private final MessageService messageService;
+    private final MessageReadService messageReadService;
 
     @Operation(summary = "搜索群（模糊匹配群名）")
     @GetMapping("/search")
@@ -204,10 +206,11 @@ public class GroupController {
         return Result.ok();
     }
 
-    @Operation(summary = "获取群申请列表")
+    @Operation(summary = "获取群申请/邀请列表")
     @GetMapping("/{groupId}/requests")
-    public Result<List<GroupRequest>> getRequests(@PathVariable Long groupId) {
-        return Result.ok(groupRequestService.getRequests(groupId));
+    public Result<List<GroupRequest>> getRequests(@PathVariable Long groupId,
+                                                   @RequestParam(defaultValue = "0") Integer type) {
+        return Result.ok(groupRequestService.getRequests(groupId, type));
     }
 
     @Operation(summary = "获取收到的入群邀请")
@@ -225,9 +228,9 @@ public class GroupController {
         if (msg == null) return Result.fail("消息不存在");
         long readCount = messageReadService.getReadCount(messageId);
         long totalMembers = groupService.lambdaQuery()
-                .eq(com.sylvie233.repository.entity.GroupInfo::getId, msg.getToId())
+                .eq(GroupInfo::getId, msg.getToId())
                 .oneOpt()
-                .map(com.sylvie233.repository.entity.GroupInfo::getMemberCount)
+                .map(GroupInfo::getMemberCount)
                 .orElse(0);
         return Result.ok(java.util.Map.of(
                 "readCount", readCount,

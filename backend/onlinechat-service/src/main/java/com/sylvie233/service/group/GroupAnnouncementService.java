@@ -1,5 +1,6 @@
 package com.sylvie233.service.group;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.sylvie233.common.exception.BizException;
@@ -97,7 +98,7 @@ public class GroupAnnouncementService extends ServiceImpl<GroupAnnouncementMappe
     @Transactional
     public void markAsRead(Long announcementId, Long userId) {
         GroupAnnouncementRead exist = announcementReadMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GroupAnnouncementRead>()
+                new LambdaQueryWrapper<GroupAnnouncementRead>()
                         .eq(GroupAnnouncementRead::getAnnouncementId, announcementId)
                         .eq(GroupAnnouncementRead::getUserId, userId));
         if (exist == null) {
@@ -114,7 +115,7 @@ public class GroupAnnouncementService extends ServiceImpl<GroupAnnouncementMappe
      */
     public long getReadCount(Long announcementId) {
         return announcementReadMapper.selectCount(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GroupAnnouncementRead>()
+                new LambdaQueryWrapper<GroupAnnouncementRead>()
                         .eq(GroupAnnouncementRead::getAnnouncementId, announcementId));
     }
 }

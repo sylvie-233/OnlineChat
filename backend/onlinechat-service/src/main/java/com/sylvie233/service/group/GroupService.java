@@ -1,5 +1,6 @@
 package com.sylvie233.service.group;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.sylvie233.common.enums.GroupRole;
 import com.sylvie233.common.exception.BizException;
@@ -92,7 +93,7 @@ public class GroupService extends ServiceImpl<GroupInfoMapper, GroupInfo> {
 
         // 通知所有群成员
         List<GroupMember> members = groupMemberMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GroupMember>()
+                new LambdaQueryWrapper<GroupMember>()
                         .eq(GroupMember::getGroupId, groupId));
         for (GroupMember m : members) {
             if (!m.getUserId().equals(userId)) {
@@ -106,7 +107,7 @@ public class GroupService extends ServiceImpl<GroupInfoMapper, GroupInfo> {
     /** 获取群成员列表（按角色 + 加入时间排序） */
     public List<GroupMember> getMembers(Long groupId) {
         return groupMemberMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GroupMember>()
+                new LambdaQueryWrapper<GroupMember>()
                         .eq(GroupMember::getGroupId, groupId)
                         .orderByAsc(GroupMember::getRole)
                         .orderByAsc(GroupMember::getJoinTime));
@@ -248,8 +249,9 @@ public class GroupService extends ServiceImpl<GroupInfoMapper, GroupInfo> {
 
     /** 获取用户加入的所有群（排除已解散的） */
     public List<GroupInfo> getMyGroups(Long userId) {
+        // 查询当前用户所属的所有群成员
         List<GroupMember> memberships = groupMemberMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GroupMember>()
+                new LambdaQueryWrapper<GroupMember>()
                         .eq(GroupMember::getUserId, userId));
         if (memberships.isEmpty()) return List.of();
         List<Long> groupIds = memberships.stream().map(GroupMember::getGroupId).toList();
@@ -263,7 +265,7 @@ public class GroupService extends ServiceImpl<GroupInfoMapper, GroupInfo> {
 
     private void createConversation(Long userId, Long groupId) {
         Conversation exist = conversationMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Conversation>()
+                new LambdaQueryWrapper<Conversation>()
                         .eq(Conversation::getUserId, userId)
                         .eq(Conversation::getType, 1)
                         .eq(Conversation::getTargetId, groupId));
@@ -278,6 +280,7 @@ public class GroupService extends ServiceImpl<GroupInfoMapper, GroupInfo> {
 
     private void checkAdmin(Long groupId, Long userId) {
         GroupMember member = getMember(groupId, userId);
+        // 判断角色是否为群主或管理员
         if (member == null || member.getRole() < GroupRole.ADMIN.getCode()) {
             log.warn("无权限操作: groupId={}, userId={}, role={}",
                     groupId, userId, member != null ? member.getRole() : null);
@@ -287,7 +290,7 @@ public class GroupService extends ServiceImpl<GroupInfoMapper, GroupInfo> {
 
     private GroupMember getMember(Long groupId, Long userId) {
         return groupMemberMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GroupMember>()
+                new LambdaQueryWrapper<GroupMember>()
                         .eq(GroupMember::getGroupId, groupId).eq(GroupMember::getUserId, userId));
     }
 }
