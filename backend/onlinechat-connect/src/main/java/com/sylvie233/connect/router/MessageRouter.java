@@ -331,12 +331,14 @@ public class MessageRouter {
     }
 
     // ==================== 工具方法 ====================
-
+    // 推送消息给用户
     private void pushToUser(Long userId, Message msg) {
+        // 构建系统推送消息体
         ImPacket push = ImPacket.push(msg);
         pushToUserRaw(userId, push);
     }
 
+    // 获取用户的所有channel并推送
     private void pushToUserRaw(Long userId, ImPacket packet) {
         String json = JSON.toJSONString(packet);
         Set<Channel> channels = sessionManager.getUserChannels(userId);
@@ -351,6 +353,7 @@ public class MessageRouter {
         return null;
     }
 
+    // 消息回复
     private void ack(Channel channel, int cmd, long seq, Object data) {
         channel.writeAndFlush(new TextWebSocketFrame(
                 JSON.toJSONString(new ImPacket(cmd, seq, System.currentTimeMillis(), data))));

@@ -35,6 +35,7 @@ public class SessionManager {
      */
     public void bindUser(String channelId, Long userId, String deviceType, String deviceId) {
         ChannelSession session = channelSessionMap.get(channelId);
+        // 绑定要求Channel已经注册过了
         if (session == null) return;
 
         // 收集同设备旧连接（不在迭代中关闭 channel）
