@@ -1,5 +1,6 @@
 package com.sylvie233.service.conversation;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.sylvie233.repository.entity.Conversation;
 import com.sylvie233.repository.entity.GroupInfo;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 会话服务 — 管理用户聊天列表
@@ -26,7 +29,7 @@ public class ConversationService extends ServiceImpl<ConversationMapper, Convers
     private final UserMapper userMapper;
     private final GroupInfoMapper groupInfoMapper;
 
-    /** 获取用户聊天列表（置顶优先 + 最后消息时间排序，排除隐藏） */
+    /** 获取用户聊天列表（置顶优先 + 最后消息时间排序，排除隐藏 & 已解散群） */
     public List<Conversation> getConversations(Long userId) {
         List<Conversation> list = lambdaQuery()
                 .eq(Conversation::getUserId, userId)
@@ -34,6 +37,25 @@ public class ConversationService extends ServiceImpl<ConversationMapper, Convers
                 .orderByDesc(Conversation::getIsPinned)
                 .orderByDesc(Conversation::getUpdateTime)
                 .list();
+
+        // 批量查出所有关联的群，过滤已解散的群会话
+        List<Long> groupIds = list.stream()
+                .filter(c -> c.getType() == 1)
+                .map(Conversation::getTargetId)
+                .distinct()
+                .toList();
+        final Set<Long> validGroupIds = groupIds.isEmpty()
+                ? Set.of()
+                : groupInfoMapper.selectList(
+                        new LambdaQueryWrapper<GroupInfo>()
+                                .in(GroupInfo::getId, groupIds)
+                                .eq(GroupInfo::getStatus, 0))
+                        .stream()
+                        .map(GroupInfo::getId)
+                        .collect(Collectors.toSet());
+
+        // 过滤已解散的群会话
+        list.removeIf(c -> c.getType() == 1 && !validGroupIds.contains(c.getTargetId()));
 
         // 填充 targetName / targetAvatar
         for (Conversation c : list) {
