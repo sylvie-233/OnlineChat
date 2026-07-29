@@ -35,6 +35,8 @@ const editAnnounceId = ref(0)
 // 群设置
 const showSettings = ref(false)
 const settingsForm = ref<any>({})
+const showDismiss = ref(false)
+const dismissConfirmName = ref('')
 
 // 邀请
 const inviteKeyword = ref('')
@@ -75,6 +77,8 @@ async function dismissGroup() {
   await groupApi.dismiss(group.currentGroup.id)
   message.success('群已解散')
   group.currentGroup = null
+  showDismiss.value = false
+  dismissConfirmName.value = ''
   await group.loadMyGroups()
 }
 
@@ -280,6 +284,9 @@ const isAdmin = computed(() => {
 
       <div class="group-list">
         <div v-if="tab === 'my'">
+          <a-button type="dashed" size="small" block @click="showCreate = true" style="margin-bottom:8px">
+            <PlusOutlined /> 新建群
+          </a-button>
           <div v-for="g in group.myGroups" :key="g.id"
                :class="['group-item', { active: group.currentGroup?.id === g.id }]"
                @click="selectGroup(g)">
@@ -289,9 +296,6 @@ const isAdmin = computed(() => {
               <div class="group-meta">{{ g.memberCount }} 成员</div>
             </div>
           </div>
-          <a-button type="dashed" size="small" block @click="showCreate = true" style="margin-bottom:8px">
-            <PlusOutlined /> 新建群
-          </a-button>
           <a-empty v-if="group.myGroups.length === 0" description="暂无群聊" />
         </div>
 
@@ -336,9 +340,9 @@ const isAdmin = computed(() => {
         <div class="detail-actions">
           <a-button type="primary" size="small" @click="enterGroupChat">进入聊天</a-button>
           <a-button size="small" @click="openSettings"><SettingOutlined /> 设置</a-button>
-          <a-popconfirm v-if="isOwner" title="确认解散群？此操作不可恢复" @confirm="dismissGroup">
-            <a-button size="small" danger><DeleteOutlined /> 解散群</a-button>
-          </a-popconfirm>
+          <a-button v-if="isOwner" size="small" danger @click="showDismiss = true">
+            <DeleteOutlined /> 解散群
+          </a-button>
           <a-button v-else size="small" @click="group.leaveGroup(group.currentGroup!.id)">
             <LogoutOutlined /> 退群
           </a-button>
@@ -480,6 +484,33 @@ const isAdmin = computed(() => {
       okText="保存" cancelText="取消">
       <a-input v-model:value="announceTitle" placeholder="标题" style="margin-bottom:12px" />
       <a-textarea v-model:value="announceContent" placeholder="内容" :rows="5" />
+    </a-modal>
+
+    <!-- 解散群确认弹窗 -->
+    <a-modal v-model:open="showDismiss" title="解散群聊" width="480px"
+      :ok-button-props="{ danger: true, disabled: dismissConfirmName !== group.currentGroup?.groupName }"
+      okText="确认解散" cancelText="取消"
+      @ok="dismissGroup"
+      @cancel="dismissConfirmName = ''">
+      <div style="text-align:center; padding: 16px 0">
+        <a-avatar :size="56" :src="group.currentGroup?.avatar" style="margin-bottom:12px">
+          <TeamOutlined />
+        </a-avatar>
+        <h3 style="margin:8px 0 4px">{{ group.currentGroup?.groupName }}</h3>
+        <p style="color:#999; margin-bottom:20px">{{ group.currentGroup?.memberCount }} 位成员</p>
+        <a-alert
+          type="error"
+          show-icon
+          message="危险操作"
+          description="解散群后将删除该群的所有数据（包括聊天记录、公告、成员信息等），此操作不可恢复！"
+          style="text-align:left; margin-bottom:20px"
+        />
+        <p style="margin-bottom:8px; color:#666">
+          请输入群名称 <strong>{{ group.currentGroup?.groupName }}</strong> 以确认删除：
+        </p>
+        <a-input v-model:value="dismissConfirmName" placeholder="请输入群名称确认" size="large"
+          :status="dismissConfirmName && dismissConfirmName !== group.currentGroup?.groupName ? 'error' : ''" />
+      </div>
     </a-modal>
   </div>
 </template>
