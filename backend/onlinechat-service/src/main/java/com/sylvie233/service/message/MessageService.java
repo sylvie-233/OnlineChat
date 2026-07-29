@@ -1,8 +1,11 @@
 package com.sylvie233.service.message;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.sylvie233.common.enums.ConversationType;
 import com.sylvie233.common.enums.MessageStatus;
+import com.sylvie233.repository.entity.Conversation;
+import com.sylvie233.repository.entity.GroupMember;
 import com.sylvie233.repository.entity.Message;
 import com.sylvie233.repository.entity.MessageRecall;
 import com.sylvie233.repository.mapper.MessageMapper;
@@ -193,7 +196,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
     /** 从 conversation 记录中解析 targetId（私聊=对方userId，群聊=groupId） */
     private Long resolveTargetId(Long conversationId, ConversationType type, Long currentUserId) {
         if (conversationId != null && conversationId > 0) {
-            com.sylvie233.repository.entity.Conversation conv = conversationMapper.selectById(conversationId);
+            Conversation conv = conversationMapper.selectById(conversationId);
             return conv != null ? conv.getTargetId() : null;
         }
         return null;
@@ -302,14 +305,14 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
     }
 
     private Long getOrCreateConversation(Long userId, int convType, Long targetId) {
-        com.sylvie233.repository.entity.Conversation exist = conversationMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.sylvie233.repository.entity.Conversation>()
-                        .eq(com.sylvie233.repository.entity.Conversation::getType, convType)
-                        .eq(com.sylvie233.repository.entity.Conversation::getUserId, userId)
-                        .eq(com.sylvie233.repository.entity.Conversation::getTargetId, targetId));
+        Conversation exist = conversationMapper.selectOne(
+                new LambdaQueryWrapper<Conversation>()
+                        .eq(Conversation::getType, convType)
+                        .eq(Conversation::getUserId, userId)
+                        .eq(Conversation::getTargetId, targetId));
         if (exist != null) return exist.getId();
 
-        com.sylvie233.repository.entity.Conversation conv = new com.sylvie233.repository.entity.Conversation();
+        Conversation conv = new Conversation();
         conv.setUserId(userId);
         conv.setType(convType);
         conv.setTargetId(targetId);
@@ -332,20 +335,19 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
             conversationService.updateLastMessage(buildConv(fromUserId, 0, toId, msg), false);
         } else {
             // 群聊：更新所有群成员的会话（除发送者不加未读）
-            java.util.List<com.sylvie233.repository.entity.GroupMember> members = groupMemberMapper.selectList(
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.sylvie233.repository.entity.GroupMember>()
-                            .eq(com.sylvie233.repository.entity.GroupMember::getGroupId, toId));
-            for (com.sylvie233.repository.entity.GroupMember member : members) {
+            List<GroupMember> members = groupMemberMapper.selectList(
+                    new LambdaQueryWrapper<GroupMember>()
+                            .eq(GroupMember::getGroupId, toId));
+            for (GroupMember member : members) {
                 boolean isSender = member.getUserId().equals(fromUserId);
                 conversationService.updateLastMessage(buildConv(member.getUserId(), 1, toId, msg), !isSender);
             }
         }
     }
 
-    private com.sylvie233.repository.entity.Conversation buildConv(Long userId, int type,
-                                                                     Long targetId, Message msg) {
-        com.sylvie233.repository.entity.Conversation conv =
-                new com.sylvie233.repository.entity.Conversation();
+    private Conversation buildConv(Long userId, int type, Long targetId, Message msg) {
+        Conversation conv =
+                new Conversation();
         conv.setUserId(userId);
         conv.setType(type);
         conv.setTargetId(targetId);
