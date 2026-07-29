@@ -48,11 +48,16 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
         ChannelSession session = getSession(channel);
         if (session != null) {
             Long userId = session.getUserId();
-            sessionManager.unbind(session.channelId());
-            // 如果用户没有其他活跃 channel，清理 Redis 在线状态
-            if (userId != null && sessionManager.getUserChannels(userId).isEmpty()) {
-                redisCacheService.setOffline(userId);
-                userService.offline(userId);
+            String channelId = session.channelId();
+            sessionManager.unbind(channelId);
+            // 清理 Redis channel 绑定
+            if (userId != null) {
+                redisCacheService.unbindChannel(userId, channelId);
+                // 仅当用户完全没有活跃 channel 时才标记离线
+                if (sessionManager.getUserChannels(userId).isEmpty()) {
+                    redisCacheService.setOffline(userId);
+                    userService.offline(userId);
+                }
             }
         }
         log.info("WebSocket 连接断开: {}", session != null ? session.channelId() : "unknown");
@@ -120,6 +125,10 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
                 log.trace("心跳回复: channel={}, userId={}", channelId, userId);
                 channel.writeAndFlush(new TextWebSocketFrame(
                         JSON.toJSONString(ImPacket.heartbeatAck())));
+                // 刷新 Redis 在线 TTL，防止长连接过期
+                if (userId != null) {
+                    redisCacheService.refreshOnline(userId);
+                }
             }
 
             case ImPacket.CMD_AUTH -> {

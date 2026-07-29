@@ -120,12 +120,16 @@ export const useChatStore = defineStore('chat', () => {
     const token = auth.token
     const userId = auth.userId
 
-    // 收到第一个 HEARTBEAT_ACK 即发送认证（一次性）
-    const doAuth = () => {
-      wsClient.send(CMD.AUTH, { token, userId, deviceType: 'web', deviceId: 'web-' + userId })
-      wsClient.off(CMD.HEARTBEAT_ACK) // 只发一次
-    }
-    wsClient.on(CMD.HEARTBEAT_ACK, doAuth)
+    // 连接成功 / 重连成功后立即发送认证
+    wsClient.onOpen(() => {
+      if (!auth.token || !auth.userId) return
+      wsClient.send(CMD.AUTH, { token: auth.token, userId: auth.userId, deviceType: 'web', deviceId: 'web-' + auth.userId })
+    })
+
+    // 连接断开时重置标记，确保下次能重新初始化
+    wsClient.onClose(() => {
+      wsInited = false
+    })
 
     wsClient.on(CMD.AUTH_ACK, () => {
       console.log('[IM] 认证成功')

@@ -6,7 +6,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Redis 缓存服务 — 在线状态、Channel映射、消息seq、离线消息
@@ -50,15 +52,25 @@ public class RedisCacheService {
     }
 
     // ==================== Channel 映射 ====================
-    // 绑定用户channel
+
+    /** 绑定用户 channel（支持多设备） */
     public void bindChannel(Long userId, String channelId) {
-        redisTemplate.opsForValue().set(USER_CHANNEL_KEY + userId, channelId, 30, TimeUnit.MINUTES);
+        String key = USER_CHANNEL_KEY + userId;
+        redisTemplate.opsForSet().add(key, channelId);
+        redisTemplate.expire(key, 30, TimeUnit.MINUTES);
     }
 
-    // 获取用户channel
-    public String getChannelId(Long userId) {
-        Object val = redisTemplate.opsForValue().get(USER_CHANNEL_KEY + userId);
-        return val != null ? val.toString() : null;
+    /** 解绑用户 channel */
+    public void unbindChannel(Long userId, String channelId) {
+        String key = USER_CHANNEL_KEY + userId;
+        redisTemplate.opsForSet().remove(key, channelId);
+    }
+
+    /** 获取用户所有 channel */
+    public Set<String> getChannelIds(Long userId) {
+        Set<Object> members = redisTemplate.opsForSet().members(USER_CHANNEL_KEY + userId);
+        if (members == null || members.isEmpty()) return Set.of();
+        return members.stream().map(Object::toString).collect(Collectors.toSet());
     }
 
     // ==================== 消息 seq ====================

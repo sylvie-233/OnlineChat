@@ -14,6 +14,8 @@ class WsClient {
   private ws: WebSocket | null = null
   private seq = 0
   private handlers = new Map<number, WsCallback>()
+  private onOpenCallbacks: Array<() => void> = []
+  private onCloseCallbacks: Array<() => void> = []
   private reconnectTimer = 0
   private heartbeatTimer = 0
   private url = ''
@@ -30,8 +32,9 @@ class WsClient {
 
     this.ws.onopen = () => {
       console.log('[WS] 已连接')
-      this.send(0) // 立即发送首次心跳，触发认证流程
       this.startHeartbeat()
+      // 通知所有 onOpen 回调（用于发送认证等）
+      for (const cb of this.onOpenCallbacks) cb()
     }
 
     this.ws.onmessage = (e) => {
@@ -47,6 +50,7 @@ class WsClient {
     this.ws.onclose = () => {
       console.log('[WS] 断开')
       this.stopHeartbeat()
+      for (const cb of this.onCloseCallbacks) cb()
       if (!this._closed) this.reconnect()
     }
 
@@ -62,6 +66,16 @@ class WsClient {
 
   off(cmd: number) {
     this.handlers.delete(cmd)
+  }
+
+  /** 注册连接成功回调（每次连接/重连都会触发） */
+  onOpen(cb: () => void) {
+    this.onOpenCallbacks.push(cb)
+  }
+
+  /** 注册断开回调 */
+  onClose(cb: () => void) {
+    this.onCloseCallbacks.push(cb)
   }
 
   /** 发送消息 */
@@ -81,6 +95,8 @@ class WsClient {
     this._closed = true
     this.stopHeartbeat()
     clearTimeout(this.reconnectTimer)
+    this.onOpenCallbacks.length = 0
+    this.onCloseCallbacks.length = 0
     this.ws?.close()
     this.ws = null
   }
