@@ -3,16 +3,20 @@ package com.sylvie233.connect.router;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.sylvie233.common.enums.MessageStatus;
 import com.sylvie233.connect.protocol.ImPacket;
 import com.sylvie233.connect.session.ChannelSession;
 import com.sylvie233.connect.session.SessionManager;
 import com.sylvie233.repository.entity.GroupMember;
 import com.sylvie233.repository.entity.Message;
+import com.sylvie233.repository.entity.User;
 import com.sylvie233.repository.mapper.GroupMemberMapper;
 import com.sylvie233.service.cache.RedisCacheService;
 import com.sylvie233.service.message.MessageService;
 import com.sylvie233.service.message.MessageReadService;
 import com.sylvie233.service.user.UserService;
+
+import cn.dev33.satoken.stp.StpUtil;
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
@@ -47,11 +51,12 @@ public class MessageRouter {
         String token = body.getString("token");
         String deviceType = body.getString("deviceType");
         String deviceId = body.getString("deviceId");
-        // 优先用 token 反查真实 userId，防止客户端传错 ID
+        
+        // 获取token中的userId 
         Long userId = body.getLong("userId");
         if (token != null && !token.isEmpty()) {
             try {
-                Object loginId = cn.dev33.satoken.stp.StpUtil.getLoginIdByToken(token);
+                Object loginId = StpUtil.getLoginIdByToken(token);
                 if (loginId != null) {
                     long tokenUserId = Long.parseLong(loginId.toString());
                     if (userId == null || !userId.equals(tokenUserId)) {
@@ -68,6 +73,7 @@ public class MessageRouter {
             return;
         }
 
+        // user channel绑定（内存、redis、数据库）
         sessionManager.bindUser(session.channelId(), userId, deviceType, deviceId);
         redisCacheService.bindChannel(userId, session.channelId());
         redisCacheService.setOnline(userId, "node1");
@@ -94,19 +100,24 @@ public class MessageRouter {
             return;
         }
 
+        // 消息转发
         if (packet.getCmd() == ImPacket.CMD_FORWARD_MSG) {
             handleForward(session, packet);
             return;
         }
 
+        // 构建消息
         Message msg = buildMessage(session, body);
 
+        // 私聊消息路由
         if (packet.getCmd() == ImPacket.CMD_PRIVATE_MSG) {
             Long toUserId = body.getLong("toUserId");
             msg.setToId(toUserId);
             msg.setConversationType(0);
             routeToUser(channel, session.getUserId(), toUserId, msg, packet.getSeq());
-        } else if (packet.getCmd() == ImPacket.CMD_GROUP_MSG) {
+        } 
+        // 群聊消息路由
+        else if (packet.getCmd() == ImPacket.CMD_GROUP_MSG) {
             Long groupId = body.getLong("groupId");
             msg.setToId(groupId);
             msg.setConversationType(1);
@@ -114,6 +125,7 @@ public class MessageRouter {
         }
     }
 
+    // 消息构建
     private Message buildMessage(ChannelSession session, JSONObject body) {
         Message msg = new Message();
         msg.setFromUserId(session.getUserId());
@@ -126,38 +138,43 @@ public class MessageRouter {
         msg.setConversationId(convId != null ? convId : 0L);
 
         // 携带发送者昵称（用于前端显示，不依赖 userId 比对）
-        com.sylvie233.repository.entity.User sender = userService.getById(session.getUserId());
+        User sender = userService.getById(session.getUserId());
         if (sender != null && msg.getExtra() == null) {
-            com.alibaba.fastjson2.JSONObject extra = new com.alibaba.fastjson2.JSONObject();
+            JSONObject extra = new JSONObject();
             extra.put("fromNickname", sender.getNickname() != null ? sender.getNickname() : "");
             msg.setExtra(extra.toString());
         }
         return msg;
     }
 
+    // 私聊消息路由
     private void routeToUser(Channel channel, Long senderId, Long toUserId, Message msg, long clientSeq) {
+        // 消息入库
         messageService.sendMessage(msg);
 
+        // 消息推送
         if (redisCacheService.isOnline(toUserId)) {
             // 在线：直接推送 + 标记已送达
             pushToUser(toUserId, msg);
-            messageService.updateStatus(msg.getId(),
-                    com.sylvie233.common.enums.MessageStatus.DELIVERED);
+            messageService.updateStatus(msg.getId(), MessageStatus.DELIVERED);
         } else {
             // 离线：存入 Redis 离线消息队列
             redisCacheService.storeOfflineMessage(toUserId, msg);
         }
 
+        // 消息应答
         ack(channel, ImPacket.CMD_PRIVATE_MSG_ACK, clientSeq, msg);
     }
 
+    // 群聊消息路由
     private void routeToGroup(Channel channel, Long groupId, Message msg, long clientSeq) {
+        // 消息入库 
         messageService.sendMessage(msg);
 
         List<GroupMember> members = groupMemberMapper.selectList(
                 new LambdaQueryWrapper<GroupMember>()
                         .eq(GroupMember::getGroupId, groupId));
-
+        // 消息推送
         for (GroupMember member : members) {
             if (member.getUserId().equals(msg.getFromUserId())) continue;
             if (redisCacheService.isOnline(member.getUserId())) {
@@ -167,12 +184,13 @@ public class MessageRouter {
             }
         }
 
+        // 消息应答
         ack(channel, ImPacket.CMD_GROUP_MSG_ACK, clientSeq, msg);
         log.info("群聊广播: groupId={}, members={}", groupId, members.size());
     }
 
     // ==================== 转发 ====================
-
+    // 消息转发
     private void handleForward(ChannelSession session, ImPacket packet) {
         JSONObject body = (JSONObject) packet.getBody();
         Long originalMsgId = body.getLong("originalMsgId");
@@ -201,7 +219,7 @@ public class MessageRouter {
     }
 
     // ==================== 离线消息 ====================
-
+    // 离线消息推送
     private void pushOfflineMessages(Channel channel, Long userId) {
         List<Object> offlineMessages = redisCacheService.fetchOfflineMessages(userId);
         if (offlineMessages.isEmpty()) return;
@@ -214,7 +232,7 @@ public class MessageRouter {
     }
 
     // ==================== 已读 / 撤回 / 在线状态 / 正在输入 ====================
-
+    // 消息已读通知
     public void handleReadNotify(ChannelSession session, ImPacket packet) {
         JSONObject body = (JSONObject) packet.getBody();
         Long messageId = parseLong(body.get("messageId"));
@@ -243,6 +261,7 @@ public class MessageRouter {
         }
     }
 
+    // 消息撤回通知
     public void handleRecallNotify(ChannelSession session, ImPacket packet) {
         JSONObject body = (JSONObject) packet.getBody();
         Long messageId = body.getLong("messageId");
@@ -293,6 +312,7 @@ public class MessageRouter {
         log.info("撤回事件已广播: msgId={}, recallUserId={}", messageId, recallUserId);
     }
 
+    // 推送给用户的所有Channel
     private void pushRawToAllChannels(Long userId, String json) {
         Set<Channel> channels = sessionManager.getUserChannels(userId);
         for (Channel ch : channels) {
@@ -300,6 +320,7 @@ public class MessageRouter {
         }
     }
 
+    // 在线状态通知
     public void handleOnlineStatusNotify(ChannelSession session, ImPacket packet) {
         JSONObject body = (JSONObject) packet.getBody();
         Integer status = body.getInteger("status");
@@ -308,6 +329,7 @@ public class MessageRouter {
         }
     }
 
+    // 消息输入提示
     public void handleTyping(ChannelSession session, ImPacket packet) {
         JSONObject body = (JSONObject) packet.getBody();
         Long toUserId = body.getLong("toUserId");

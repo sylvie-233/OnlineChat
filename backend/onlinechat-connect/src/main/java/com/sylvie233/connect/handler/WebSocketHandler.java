@@ -37,7 +37,10 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         Channel channel = ctx.channel();
+        // 连接成功，注册channel session
         ChannelSession session = sessionManager.register(channel);
+
+        // channel反向关联session
         channel.attr(SESSION_KEY).set(session);
         log.info("WebSocket 连接建立: {}", session.channelId());
     }
@@ -49,9 +52,11 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
         if (session != null) {
             Long userId = session.getUserId();
             String channelId = session.channelId();
+            // 内存session解绑
             sessionManager.unbind(channelId);
             // 清理 Redis channel 绑定
             if (userId != null) {
+                // redis channel解绑
                 redisCacheService.unbindChannel(userId, channelId);
                 // 仅当用户完全没有活跃 channel 时才标记离线
                 if (sessionManager.getUserChannels(userId).isEmpty()) {
@@ -90,6 +95,7 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
             return;
         }
 
+        // 文本消息帧
         if (frame instanceof TextWebSocketFrame) {
             String text = ((TextWebSocketFrame) frame).text();
             log.debug("收到文本消息: {}, userId={}, size={}B, payload={}",
@@ -109,6 +115,7 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
         }
     }
 
+    // 文本消息帧处理
     private void handlePacket(Channel channel, ChannelSession session, ImPacket packet) {
         session.refreshActive();
 
@@ -120,6 +127,7 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
         log.debug("处理消息包: channel={}, userId={}, cmd={}({}), seq={}",
                 channelId, userId, ImPacket.cmdName(cmd), cmd, seq);
 
+        // 消息命令处理逻辑（核心）
         switch (cmd) {
             case ImPacket.CMD_HEARTBEAT -> {
                 log.trace("心跳回复: channel={}, userId={}", channelId, userId);
@@ -133,6 +141,8 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
 
             case ImPacket.CMD_AUTH -> {
                 log.debug("处理认证请求: channel={}, userId={}, seq={}", channelId, userId, seq);
+
+                // 用户、Session绑定
                 messageRouter.handleAuth(channel, session, packet);
             }
 
@@ -148,6 +158,8 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
                 }
                 log.debug("路由消息: channel={}, userId={}, cmd={}({}), seq={}",
                         channelId, userId, ImPacket.cmdName(cmd), cmd, seq);
+
+                // 消息路由（消息入库、消息推送、消息应答）
                 messageRouter.route(channel, session, packet);
             }
 
@@ -157,6 +169,8 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
                     return;
                 }
                 log.debug("已读通知: channel={}, userId={}, seq={}", channelId, userId, seq);
+
+                // 标记消息已读
                 messageRouter.handleReadNotify(session, packet);
             }
 
@@ -166,6 +180,7 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
                     return;
                 }
                 log.debug("撤回通知: channel={}, userId={}, seq={}", channelId, userId, seq);
+                // 消息撤回并广播
                 messageRouter.handleRecallNotify(session, packet);
             }
 
@@ -175,6 +190,8 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
                     return;
                 }
                 log.debug("在线状态通知: channel={}, userId={}, seq={}", channelId, userId, seq);
+
+                // 更新在线状态
                 messageRouter.handleOnlineStatusNotify(session, packet);
             }
 
@@ -184,6 +201,8 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame
                     return;
                 }
                 log.trace("正在输入: channel={}, userId={}, seq={}", channelId, userId, seq);
+
+                // 输入提示推送
                 messageRouter.handleTyping(session, packet);
             }
 
