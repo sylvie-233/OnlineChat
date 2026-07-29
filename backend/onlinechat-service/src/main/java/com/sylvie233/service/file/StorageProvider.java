@@ -20,6 +20,15 @@ public interface StorageProvider {
     String upload(MultipartFile file, String objectName) throws Exception;
 
     /**
+     * 上传字节数组（用于缩略图等内存生成的图片）
+     * @param data        文件字节
+     * @param objectName  对象名
+     * @param contentType MIME 类型
+     * @return 文件访问 URL
+     */
+    String upload(byte[] data, String objectName, String contentType) throws Exception;
+
+    /**
      * 生成预签名访问 URL
      * @param objectName 对象名
      * @param expireSeconds 有效期（秒）

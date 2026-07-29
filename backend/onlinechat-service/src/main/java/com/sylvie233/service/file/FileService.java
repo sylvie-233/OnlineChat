@@ -9,10 +9,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -113,18 +113,29 @@ public class FileService extends ServiceImpl<FileUploadMapper, FileUpload> {
     private String generateThumbnailAndUpload(BufferedImage original, String objectName) throws Exception {
         int thumbWidth = 200;
         int thumbHeight = (int) (original.getHeight() * (200.0 / original.getWidth()));
+
+        // JPEG 不支持透明通道，统一用 RGB + 白底
         BufferedImage thumb = new BufferedImage(thumbWidth, thumbHeight, BufferedImage.TYPE_INT_RGB);
-        thumb.createGraphics().drawImage(
-                original.getScaledInstance(thumbWidth, thumbHeight, java.awt.Image.SCALE_SMOOTH), 0, 0, null);
+        Graphics2D g2d = thumb.createGraphics();
+        try {
+            g2d.setColor(java.awt.Color.WHITE);
+            g2d.fillRect(0, 0, thumbWidth, thumbHeight);
+            g2d.drawImage(
+                    original.getScaledInstance(thumbWidth, thumbHeight, Image.SCALE_SMOOTH), 0, 0, null);
+        } finally {
+            g2d.dispose();
+        }
 
         ByteArrayOutputStream os = new ByteArrayOutputStream();
-        ImageIO.write(thumb, "jpg", os);
+        boolean written = ImageIO.write(thumb, "jpg", os);
+        if (!written) {
+            throw new java.io.IOException("JPEG 编码器不可用");
+        }
         byte[] bytes = os.toByteArray();
 
-        // 使用简单的 MinIO API 上传缩略图
-        // 缩略图上传使用 MinioClient（直接依赖）, 未来可通过第二个 StorageProvider 实例优化
-        log.debug("缩略图已生成: {}", objectName);
-        return storage.getType() + "://thumb/" + objectName; // 简化版
+        String thumbUrl = storage.upload(bytes, objectName, "image/jpeg");
+        log.debug("缩略图已生成并上传: {} ({}B)", objectName, bytes.length);
+        return thumbUrl;
     }
 
     private String extractObjectName(String fileUrl) {

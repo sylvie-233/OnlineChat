@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -33,6 +34,17 @@ public class MinioStorageProvider implements StorageProvider {
                 .object(objectName)
                 .stream(file.getInputStream(), file.getSize(), -1)
                 .contentType(file.getContentType())
+                .build());
+        return endpoint + "/" + bucket + "/" + objectName;
+    }
+
+    @Override
+    public String upload(byte[] data, String objectName, String contentType) throws Exception {
+        minioClient.putObject(PutObjectArgs.builder()
+                .bucket(bucket)
+                .object(objectName)
+                .stream(new ByteArrayInputStream(data), data.length, -1)
+                .contentType(contentType)
                 .build());
         return endpoint + "/" + bucket + "/" + objectName;
     }
