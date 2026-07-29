@@ -22,7 +22,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MessageBookmarkService extends ServiceImpl<MessageBookmarkMapper, MessageBookmark> {
 
-    private final MessageBookmarkMapper bookmarkMapper;
     private final MessageMapper messageMapper;
 
     /**

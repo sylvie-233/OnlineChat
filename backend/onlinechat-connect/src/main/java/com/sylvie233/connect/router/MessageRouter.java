@@ -2,6 +2,7 @@ package com.sylvie233.connect.router;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.sylvie233.connect.protocol.ImPacket;
 import com.sylvie233.connect.session.ChannelSession;
 import com.sylvie233.connect.session.SessionManager;
@@ -154,7 +155,7 @@ public class MessageRouter {
         messageService.sendMessage(msg);
 
         List<GroupMember> members = groupMemberMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GroupMember>()
+                new LambdaQueryWrapper<GroupMember>()
                         .eq(GroupMember::getGroupId, groupId));
 
         for (GroupMember member : members) {
@@ -250,6 +251,52 @@ public class MessageRouter {
         if (!success) {
             session.getChannel().writeAndFlush(new TextWebSocketFrame(
                     JSON.toJSONString(ImPacket.error(packet.getSeq(), "撤回失败：超过2分钟或无权操作"))));
+            return;
+        }
+        // 广播撤回事件给会话内其他用户
+        broadcastRecall(messageId, session.getUserId());
+    }
+
+    /**
+     * 广播撤回事件给会话内的所有用户（含撤回者本人其他设备）
+     * HTTP 撤回接口也会调用此方法
+     */
+    public void broadcastRecall(Long messageId, Long recallUserId) {
+        Message msg = messageService.getById(messageId);
+        if (msg == null) return;
+
+        JSONObject recallBody = new JSONObject();
+        recallBody.put("messageId", messageId);
+        recallBody.put("conversationType", msg.getConversationType());
+        recallBody.put("conversationId", msg.getConversationId() != null ? msg.getConversationId() : 0);
+        recallBody.put("fromUserId", msg.getFromUserId());
+        recallBody.put("toId", msg.getToId());
+
+        ImPacket recallPacket = ImPacket.pushRecall(recallBody);
+        String json = JSON.toJSONString(recallPacket);
+
+        if (msg.getConversationType() != null && msg.getConversationType() == 1) {
+            // 群聊：广播给所有群成员
+            List<GroupMember> members = groupMemberMapper.selectList(
+                    new LambdaQueryWrapper<GroupMember>()
+                            .eq(GroupMember::getGroupId, msg.getToId()));
+            for (GroupMember member : members) {
+                pushRawToAllChannels(member.getUserId(), json);
+            }
+        } else {
+            // 单聊：推送给发送者和接收者
+            pushRawToAllChannels(msg.getFromUserId(), json);
+            if (msg.getToId() != null && !msg.getToId().equals(msg.getFromUserId())) {
+                pushRawToAllChannels(msg.getToId(), json);
+            }
+        }
+        log.info("撤回事件已广播: msgId={}, recallUserId={}", messageId, recallUserId);
+    }
+
+    private void pushRawToAllChannels(Long userId, String json) {
+        Set<Channel> channels = sessionManager.getUserChannels(userId);
+        for (Channel ch : channels) {
+            if (ch.isActive()) ch.writeAndFlush(new TextWebSocketFrame(json));
         }
     }
 
@@ -273,7 +320,7 @@ public class MessageRouter {
             pushToUserRaw(toUserId, typingNotify);
         } else if (groupId != null) {
             List<GroupMember> members = groupMemberMapper.selectList(
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GroupMember>()
+                    new LambdaQueryWrapper<GroupMember>()
                             .eq(GroupMember::getGroupId, groupId));
             for (GroupMember member : members) {
                 if (!member.getUserId().equals(session.getUserId())) {

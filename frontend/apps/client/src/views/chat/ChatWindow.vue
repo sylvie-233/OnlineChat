@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { useChatStore } from '@/stores/chat'
 import { useContactStore } from '@/stores/contact'
-import { chatApi } from '@/api/chat'
-import { wsClient } from '@/api/ws'
 import { useAuthStore } from '@/stores/auth'
+import { wsClient } from '@/api/ws'
 import http from '@/api'
 import { CMD, type Message } from '@/types'
 import {
@@ -179,7 +178,7 @@ function handleScroll() {
 }
 
 async function recallMessage(msg: Message) {
-  await chatApi.recallMessage(msg.id)
+  await chat.recallMessage(msg)
 }
 
 function togglePin() {

@@ -60,6 +60,8 @@ public class ImPacket {
     public static final int CMD_PUSH_MSG = 500;
     /** 系统通知推送 */
     public static final int CMD_PUSH_NOTIFY = 501;
+    /** 消息撤回推送 */
+    public static final int CMD_PUSH_RECALL = 502;
 
     /** 正在输入 */
     public static final int CMD_TYPING = 600;
@@ -89,6 +91,7 @@ public class ImPacket {
             case CMD_ONLINE_NOTIFY -> "ONLINE_NOTIFY";
             case CMD_PUSH_MSG      -> "PUSH_MSG";
             case CMD_PUSH_NOTIFY   -> "PUSH_NOTIFY";
+            case CMD_PUSH_RECALL   -> "PUSH_RECALL";
             case CMD_TYPING        -> "TYPING";
             case CMD_TYPING_ACK    -> "TYPING_ACK";
             case CMD_FORWARD_MSG   -> "FORWARD_MSG";
@@ -111,6 +114,10 @@ public class ImPacket {
 
     public static ImPacket notify(Object data) {
         return new ImPacket(CMD_PUSH_NOTIFY, 0, System.currentTimeMillis(), data);
+    }
+
+    public static ImPacket pushRecall(Object data) {
+        return new ImPacket(CMD_PUSH_RECALL, 0, System.currentTimeMillis(), data);
     }
 
     public static ImPacket error(long seq, String msg) {

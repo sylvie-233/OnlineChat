@@ -209,6 +209,28 @@ export const useChatStore = defineStore('chat', () => {
       }
     })
 
+    // 撤回推送：实时移除已撤回消息 + 更新会话预览
+    wsClient.on(CMD.PUSH_RECALL, (p) => {
+      const body = p.body as { messageId: number; conversationType: number; fromUserId: number; toId: number }
+      const msgId = Number(body.messageId)
+      // 从消息列表移除
+      const msgIdx = messages.value.findIndex(m => Number(m.id) === msgId)
+      if (msgIdx >= 0) {
+        messages.value.splice(msgIdx, 1)
+      }
+      // 计算会话 targetId：私聊=对方userId，群聊=groupId(toId)
+      const targetId = body.conversationType === 0
+        ? (Number(body.fromUserId) === auth.userId ? body.toId : body.fromUserId)
+        : body.toId
+      const convIdx = conversations.value.findIndex(
+        (c: Conversation) => c.type === body.conversationType && c.targetId === Number(targetId)
+      )
+      if (convIdx >= 0) {
+        const isMine = Number(body.fromUserId) === auth.userId
+        conversations.value[convIdx].lastContent = isMine ? '你撤回了一条消息' : '对方撤回了一条消息'
+      }
+    })
+
     wsClient.connect(`ws://${location.host}/ws`)
   }
 
@@ -287,12 +309,30 @@ export const useChatStore = defineStore('chat', () => {
 
   function getPreview(msg: Message): string {
     if (!msg) return ''
+    if (n(msg.isRecalled) === 1) return '[对方撤回了一条消息]'
     if (n(msg.msgType) === 1) return '[图片]'
     if (n(msg.msgType) === 2) return '[语音]'
     if (n(msg.msgType) === 3) return '[视频]'
     if (n(msg.msgType) === 4) return '[文件]'
     if (n(msg.msgType) === 5) return '[位置]'
     return (msg.content || '').substring(0, 50)
+  }
+
+  async function recallMessage(msg: Message) {
+    await chatApi.recallMessage(msg.id)
+    // 乐观移除
+    const msgIdx = messages.value.findIndex(m => Number(m.id) === Number(msg.id))
+    if (msgIdx >= 0) messages.value.splice(msgIdx, 1)
+    // 更新会话预览
+    const targetId = activeType.value === 0
+      ? (Number(msg.fromUserId) === auth.userId ? msg.toId : msg.fromUserId)
+      : msg.toId
+    const convIdx = conversations.value.findIndex(
+      (c: Conversation) => c.type === activeType.value && c.targetId === Number(targetId)
+    )
+    if (convIdx >= 0) {
+      conversations.value[convIdx].lastContent = '你撤回了一条消息'
+    }
   }
 
   function reset() {
@@ -305,7 +345,7 @@ export const useChatStore = defineStore('chat', () => {
 
   return {
     conversations, activeId, activeType, activeTargetId, activeName, messages, loading, activeConv,
-    loadConversations, openConversation, loadMessages, loadMore, addMessage,
+    loadConversations, openConversation, loadMessages, loadMore, addMessage, recallMessage,
     connectWs, sendWsMessage, setPinned, setMuted, deleteConv, reset,
   }
 })

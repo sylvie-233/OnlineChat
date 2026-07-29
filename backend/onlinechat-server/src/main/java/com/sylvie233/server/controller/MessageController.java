@@ -9,6 +9,7 @@ import com.sylvie233.common.model.resp.Result;
 import com.sylvie233.repository.entity.Message;
 import com.sylvie233.repository.entity.MessageBookmark;
 import com.sylvie233.repository.entity.MessageReaction;
+import com.sylvie233.connect.router.MessageRouter;
 import com.sylvie233.service.message.MessageService;
 import com.sylvie233.service.message.MessageReadService;
 import com.sylvie233.service.message.MessageReactionService;
@@ -34,6 +35,7 @@ public class MessageController {
     private final MessageReadService messageReadService;
     private final MessageReactionService reactionService;
     private final MessageBookmarkService bookmarkService;
+    private final MessageRouter messageRouter;
 
     @Operation(summary = "发送消息(HTTP降级)")
     @PostMapping("/send")
@@ -95,8 +97,12 @@ public class MessageController {
                                     @RequestBody(required = false) Map<String, String> body) {
         Long userId = StpUtil.getLoginIdAsLong();
         String reason = body != null ? body.get("reason") : null;
-        return messageService.recallMessage(messageId, userId, reason)
-                ? Result.ok("已撤回") : Result.fail("撤回失败：超过2分钟或无权操作");
+        boolean success = messageService.recallMessage(messageId, userId, reason);
+        if (success) {
+            messageRouter.broadcastRecall(messageId, userId);
+            return Result.ok("已撤回");
+        }
+        return Result.fail("撤回失败：超过2分钟或无权操作");
     }
 
     @Operation(summary = "标记消息已读")

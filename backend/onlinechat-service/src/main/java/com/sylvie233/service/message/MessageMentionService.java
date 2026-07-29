@@ -20,8 +20,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MessageMentionService extends ServiceImpl<MessageMentionMapper, MessageMention> {
 
-    private final MessageMentionMapper mentionMapper;
-
     /**
      * 批量创建 @提及记录
      */

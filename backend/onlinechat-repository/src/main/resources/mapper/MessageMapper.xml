@@ -7,6 +7,7 @@
     <select id="selectLatestByConversation" resultType="com.sylvie233.repository.entity.Message">
         SELECT * FROM message
         WHERE is_deleted = 0
+          AND is_recalled = 0
           <choose>
             <when test="type == 0">
               AND conversation_type = 0
@@ -27,6 +28,7 @@
         SELECT * FROM message
         WHERE send_time &lt; #{cursorTime}
           AND is_deleted = 0
+          AND is_recalled = 0
           <choose>
             <when test="type == 0">
               AND conversation_type = 0
@@ -47,6 +49,7 @@
         SELECT * FROM message
         WHERE send_time &gt; #{cursorTime}
           AND is_deleted = 0
+          AND is_recalled = 0
           <choose>
             <when test="type == 0">
               AND conversation_type = 0

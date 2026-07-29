@@ -20,8 +20,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MessageArchiveService extends ServiceImpl<MessageArchiveMapper, MessageArchive> {
 
-    private final MessageArchiveMapper archiveMapper;
-
     /**
      * 归档单条消息
      */

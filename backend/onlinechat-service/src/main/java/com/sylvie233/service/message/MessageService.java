@@ -210,6 +210,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
         return lambdaQuery()
                 .eq(Message::getConversationId, conversationId)
                 .eq(Message::getConversationType, conversationType)
+                .eq(Message::getIsRecalled, 0)
                 .gt(lastSeq != null && lastSeq > 0, Message::getSeq, lastSeq)
                 .orderByAsc(Message::getSeq)
                 .last("limit " + Math.max(limit, 1))
@@ -239,6 +240,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
 
         msg.setIsRecalled(1);
         msg.setStatus(MessageStatus.RECALLED.getCode());
+        msg.setContent(null);
         msg.setRecalledTime(LocalDateTime.now());
         updateById(msg);
 
@@ -364,6 +366,6 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
     private String buildSeqKey(Message msg) {
         int type = msg.getConversationType() != null ? msg.getConversationType() : 0;
         Long convId = msg.getConversationId() != null ? msg.getConversationId() : msg.getToId();
-        return "im:seq:" + type + ":" + convId;
+        return type + ":" + convId;
     }
 }

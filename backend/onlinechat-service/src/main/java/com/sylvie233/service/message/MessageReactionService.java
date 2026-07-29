@@ -20,8 +20,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MessageReactionService extends ServiceImpl<MessageReactionMapper, MessageReaction> {
 
-    private final MessageReactionMapper reactionMapper;
-
     /**
      * 添加 Reaction
      */
